@@ -31,7 +31,7 @@ LOGS_DIR="$HOSTFY_ROOT/logs"
 
 HOSTFY_NETWORK="${HOSTFY_NETWORK:-hostfy-network}"
 TRAEFIK_VERSION="${TRAEFIK_VERSION:-v2.10}"
-CATALOG_URL="${CATALOG_URL:-${GITHUB_RAW_URL}/commands/catalog/containers-catalog.json}"
+CATALOG_URL="${CATALOG_URL:-${GITHUB_RAW_URL}/catalog/containers-catalog.json}"
 
 # ========================================
 # Colors and Formatting
@@ -458,7 +458,7 @@ download_hostfy_files() {
 
     # Download main CLI
     log_info "Downloading hostfy.sh..."
-    if download_file "${GITHUB_RAW_URL}/commands/hostfy.sh" "$COMMANDS_DIR/hostfy.sh"; then
+    if download_file "${GITHUB_RAW_URL}/hostfy.sh" "$COMMANDS_DIR/hostfy.sh"; then
         chmod +x "$COMMANDS_DIR/hostfy.sh"
         log_success "hostfy.sh downloaded"
     else
@@ -479,7 +479,7 @@ download_hostfy_files() {
     log_info "Downloading library files..."
     for lib_file in "${lib_files[@]}"; do
         log_info "  - $lib_file"
-        if download_file "${GITHUB_RAW_URL}/commands/lib/${lib_file}" "$LIB_DIR/${lib_file}"; then
+        if download_file "${GITHUB_RAW_URL}/lib/${lib_file}" "$LIB_DIR/${lib_file}"; then
             chmod +x "$LIB_DIR/${lib_file}"
         else
             log_error "Failed to download $lib_file"

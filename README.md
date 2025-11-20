@@ -1097,7 +1097,7 @@ Failed to download catalog from GitHub
 curl -I https://github.com
 
 # 2. Tentar download manual
-curl -fsSL https://github.com/eduardocarezia/hostfy-cli/raw/refs/heads/main/commands/catalog/containers-catalog.json \
+curl -fsSL https://github.com/eduardocarezia/hostfy-cli/raw/refs/heads/main/catalog/containers-catalog.json \
   -o commands/catalog/containers-catalog.json
 
 # 3. Validar JSON
