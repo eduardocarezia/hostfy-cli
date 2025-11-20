@@ -454,19 +454,19 @@ download_file() {
 }
 
 download_hostfy_files() {
-    log_step "Downloading Hostfy files from GitHub..."
+    log_step "Checking Hostfy files..."
 
-    # Download main CLI
-    log_info "Downloading hostfy.sh..."
-    if download_file "${GITHUB_RAW_URL}/hostfy.sh" "$COMMANDS_DIR/hostfy.sh"; then
-        chmod +x "$COMMANDS_DIR/hostfy.sh"
-        log_success "hostfy.sh downloaded"
+    local needs_download=false
+
+    # Check if main CLI exists
+    if [[ ! -f "$COMMANDS_DIR/hostfy.sh" ]]; then
+        needs_download=true
+        log_info "hostfy.sh not found, will download"
     else
-        log_error "Failed to download hostfy.sh"
-        return 1
+        log_success "hostfy.sh already exists"
     fi
 
-    # Download library files
+    # Check library files
     local lib_files=(
         "utils.sh"
         "network-manager.sh"
@@ -476,28 +476,72 @@ download_hostfy_files() {
         "catalog-manager.sh"
     )
 
-    log_info "Downloading library files..."
+    local missing_libs=()
     for lib_file in "${lib_files[@]}"; do
-        log_info "  - $lib_file"
-        if download_file "${GITHUB_RAW_URL}/lib/${lib_file}" "$LIB_DIR/${lib_file}"; then
-            chmod +x "$LIB_DIR/${lib_file}"
-        else
-            log_error "Failed to download $lib_file"
-            return 1
+        if [[ ! -f "$LIB_DIR/${lib_file}" ]]; then
+            missing_libs+=("$lib_file")
+            needs_download=true
         fi
     done
 
-    log_success "All library files downloaded"
-
-    # Download catalog
-    log_info "Downloading container catalog..."
-    if download_file "$CATALOG_URL" "$CATALOG_DIR/containers-catalog.json"; then
-        log_success "Container catalog downloaded"
-    else
-        log_warning "Could not download catalog, but system will work with custom containers"
+    # Check catalog
+    local needs_catalog=false
+    if [[ ! -f "$CATALOG_DIR/containers-catalog.json" ]]; then
+        needs_catalog=true
+        needs_download=true
     fi
 
-    log_success "All Hostfy files downloaded successfully"
+    # If all files exist, skip download
+    if [[ "$needs_download" == "false" ]]; then
+        log_success "All Hostfy files already present, skipping download"
+        return 0
+    fi
+
+    # Download missing files
+    log_step "Downloading missing files from GitHub..."
+
+    # Download main CLI if needed
+    if [[ ! -f "$COMMANDS_DIR/hostfy.sh" ]]; then
+        log_info "Downloading hostfy.sh..."
+        if download_file "${GITHUB_RAW_URL}/hostfy.sh" "$COMMANDS_DIR/hostfy.sh"; then
+            chmod +x "$COMMANDS_DIR/hostfy.sh"
+            log_success "hostfy.sh downloaded"
+        else
+            log_error "Failed to download hostfy.sh"
+            return 1
+        fi
+    fi
+
+    # Download missing library files
+    if [[ ${#missing_libs[@]} -gt 0 ]]; then
+        log_info "Downloading missing library files..."
+        for lib_file in "${missing_libs[@]}"; do
+            log_info "  - $lib_file"
+            if download_file "${GITHUB_RAW_URL}/lib/${lib_file}" "$LIB_DIR/${lib_file}"; then
+                chmod +x "$LIB_DIR/${lib_file}"
+            else
+                log_error "Failed to download $lib_file"
+                return 1
+            fi
+        done
+        log_success "Library files downloaded"
+    else
+        log_success "All library files already present"
+    fi
+
+    # Download catalog if needed
+    if [[ "$needs_catalog" == "true" ]]; then
+        log_info "Downloading container catalog..."
+        if download_file "$CATALOG_URL" "$CATALOG_DIR/containers-catalog.json"; then
+            log_success "Container catalog downloaded"
+        else
+            log_warning "Could not download catalog, but system will work with custom containers"
+        fi
+    else
+        log_success "Catalog already present"
+    fi
+
+    log_success "All required files are available"
 }
 
 # ========================================
