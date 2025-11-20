@@ -369,6 +369,13 @@ check_system_dependencies() {
         log_success "curl is installed"
     fi
 
+    # Check Node.js
+    if ! command -v node &> /dev/null || ! command -v npm &> /dev/null; then
+        missing_deps+=("node")
+    else
+        log_success "Node.js is installed"
+    fi
+
     # Auto-install missing dependencies
     if [[ ${#missing_deps[@]} -gt 0 ]]; then
         echo ""
@@ -389,6 +396,9 @@ check_system_dependencies() {
                     ;;
                 curl)
                     install_curl
+                    ;;
+                node)
+                    install_node
                     ;;
             esac
         done
@@ -544,6 +554,30 @@ download_hostfy_files() {
     log_success "All required files are available"
 }
 
+download_api_files() {
+    log_step "Checking API files..."
+    
+    local api_dir="$COMMANDS_DIR/api"
+    mkdir -p "$api_dir"
+
+    local needs_download=false
+    if [[ ! -f "$api_dir/package.json" ]] || [[ ! -f "$api_dir/server.js" ]]; then
+        needs_download=true
+    fi
+
+    if [[ "$needs_download" == "false" ]]; then
+        log_success "API files already present"
+        return 0
+    fi
+
+    log_info "Downloading API files..."
+    
+    download_file "${GITHUB_RAW_URL}/api/package.json" "$api_dir/package.json"
+    download_file "${GITHUB_RAW_URL}/api/server.js" "$api_dir/server.js"
+    
+    log_success "API files downloaded"
+}
+
 # ========================================
 # Network Setup
 # ========================================
@@ -697,6 +731,33 @@ start_traefik() {
     else
         log_error "Failed to start Traefik"
         return 1
+    fi
+
+    cd "$HOSTFY_ROOT"
+}
+
+setup_api() {
+    log_step "Setting up API..."
+
+    local api_dir="$COMMANDS_DIR/api"
+    
+    if [[ ! -d "$api_dir" ]]; then
+        log_error "API directory not found"
+        return 1
+    fi
+
+    cd "$api_dir"
+    
+    if [[ ! -d "node_modules" ]]; then
+        log_info "Installing API dependencies..."
+        if npm install; then
+            log_success "API dependencies installed"
+        else
+            log_error "Failed to install API dependencies"
+            return 1
+        fi
+    else
+        log_success "API dependencies already installed"
     fi
 
     cd "$HOSTFY_ROOT"
@@ -1008,10 +1069,14 @@ main() {
     setup_traefik_config
     echo ""
 
-    start_traefik
+    setup_templates
     echo ""
 
-    setup_templates
+    setup_api
+    echo ""
+    
+    # Start Traefik
+    start_traefik
     echo ""
 
     setup_config_files
