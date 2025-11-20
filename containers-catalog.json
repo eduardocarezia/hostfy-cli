@@ -1,0 +1,691 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2024-11-20T12:00:00Z",
+  "repository": "https://github.com/hostfy/catalog",
+  "containers": [
+    {
+      "id": "postgres",
+      "name": "PostgreSQL",
+      "slug": "postgres",
+      "description": "Powerful open-source relational database system",
+      "category": "database",
+      "tags": ["database", "sql", "relational"],
+      "official": true,
+      "maintainer": "Hostfy Team",
+      "image": {
+        "repository": "postgres",
+        "registry": "docker.io",
+        "versions": [
+          {
+            "tag": "16-alpine",
+            "description": "PostgreSQL 16 (Alpine)",
+            "recommended": true
+          },
+          {
+            "tag": "15-alpine",
+            "description": "PostgreSQL 15 (Alpine)"
+          },
+          {
+            "tag": "14",
+            "description": "PostgreSQL 14"
+          }
+        ],
+        "default_version": "16-alpine"
+      },
+      "ports": [
+        {
+          "internal": 5432,
+          "external": 5432,
+          "protocol": "tcp",
+          "description": "PostgreSQL default port"
+        }
+      ],
+      "volumes": [
+        {
+          "container_path": "/var/lib/postgresql/data",
+          "description": "PostgreSQL data directory",
+          "required": true
+        }
+      ],
+      "environment": [
+        {
+          "key": "POSTGRES_DB",
+          "description": "Database name",
+          "default": "hostfy",
+          "required": true
+        },
+        {
+          "key": "POSTGRES_USER",
+          "description": "Database user",
+          "default": "admin",
+          "required": true
+        },
+        {
+          "key": "POSTGRES_PASSWORD",
+          "description": "Database password",
+          "required": true,
+          "secret": true
+        },
+        {
+          "key": "PGDATA",
+          "description": "PostgreSQL data directory",
+          "default": "/var/lib/postgresql/data/pgdata",
+          "required": false
+        }
+      ],
+      "healthcheck": {
+        "test": "pg_isready -U ${POSTGRES_USER}",
+        "interval": "10s",
+        "timeout": "5s",
+        "retries": 5,
+        "start_period": "30s"
+      },
+      "traefik": {
+        "enabled": false,
+        "port": null,
+        "domain": null
+      },
+      "dependencies": [],
+      "resources": {
+        "memory": "512M",
+        "cpu": "1.0"
+      },
+      "documentation": {
+        "url": "https://www.postgresql.org/docs/",
+        "readme": "PostgreSQL is a powerful, open source object-relational database system with over 35 years of active development."
+      }
+    },
+    {
+      "id": "redis",
+      "name": "Redis",
+      "slug": "redis",
+      "description": "In-memory data structure store, used as cache and message broker",
+      "category": "cache",
+      "tags": ["cache", "memory", "key-value"],
+      "official": true,
+      "maintainer": "Hostfy Team",
+      "image": {
+        "repository": "redis",
+        "registry": "docker.io",
+        "versions": [
+          {
+            "tag": "7-alpine",
+            "description": "Redis 7 (Alpine)",
+            "recommended": true
+          },
+          {
+            "tag": "6-alpine",
+            "description": "Redis 6 (Alpine)"
+          }
+        ],
+        "default_version": "7-alpine"
+      },
+      "ports": [
+        {
+          "internal": 6379,
+          "external": 6379,
+          "protocol": "tcp",
+          "description": "Redis default port"
+        }
+      ],
+      "volumes": [
+        {
+          "container_path": "/data",
+          "description": "Redis persistence data",
+          "required": true
+        }
+      ],
+      "environment": [
+        {
+          "key": "REDIS_PASSWORD",
+          "description": "Redis password",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "command": "redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes",
+      "healthcheck": {
+        "test": "redis-cli --raw incr ping",
+        "interval": "10s",
+        "timeout": "3s",
+        "retries": 5
+      },
+      "traefik": {
+        "enabled": false
+      },
+      "dependencies": []
+    },
+    {
+      "id": "n8n",
+      "name": "n8n",
+      "slug": "n8n",
+      "description": "Free and source-available workflow automation tool for technical teams",
+      "category": "automation",
+      "tags": ["automation", "workflow", "integration", "low-code"],
+      "official": false,
+      "maintainer": "Community",
+      "image": {
+        "repository": "n8nio/n8n",
+        "registry": "docker.io",
+        "versions": [
+          {
+            "tag": "latest",
+            "description": "Latest stable version",
+            "recommended": true
+          },
+          {
+            "tag": "1.0.0",
+            "description": "n8n v1.0.0"
+          }
+        ],
+        "default_version": "latest"
+      },
+      "ports": [
+        {
+          "internal": 5678,
+          "external": 5678,
+          "protocol": "tcp",
+          "description": "n8n web interface"
+        }
+      ],
+      "volumes": [
+        {
+          "container_path": "/home/node/.n8n",
+          "description": "n8n data directory",
+          "required": true
+        }
+      ],
+      "environment": [
+        {
+          "key": "N8N_HOST",
+          "description": "Public URL where n8n is accessible",
+          "default": "n8n.localhost",
+          "required": false
+        },
+        {
+          "key": "WEBHOOK_URL",
+          "description": "Webhook URL for external services",
+          "default": "https://n8n.localhost",
+          "required": false
+        },
+        {
+          "key": "N8N_BASIC_AUTH_ACTIVE",
+          "description": "Enable basic authentication",
+          "default": "true",
+          "required": false
+        },
+        {
+          "key": "N8N_BASIC_AUTH_USER",
+          "description": "Basic auth username",
+          "default": "admin",
+          "required": false
+        },
+        {
+          "key": "N8N_BASIC_AUTH_PASSWORD",
+          "description": "Basic auth password",
+          "required": true,
+          "secret": true
+        },
+        {
+          "key": "DB_TYPE",
+          "description": "Database type (postgresdb, mysqldb, sqlite)",
+          "default": "postgresdb",
+          "required": false
+        },
+        {
+          "key": "DB_POSTGRESDB_HOST",
+          "description": "PostgreSQL host",
+          "default": "postgres",
+          "required": false
+        },
+        {
+          "key": "DB_POSTGRESDB_PORT",
+          "description": "PostgreSQL port",
+          "default": "5432",
+          "required": false
+        },
+        {
+          "key": "DB_POSTGRESDB_DATABASE",
+          "description": "PostgreSQL database name",
+          "default": "n8n",
+          "required": false
+        },
+        {
+          "key": "DB_POSTGRESDB_USER",
+          "description": "PostgreSQL username",
+          "default": "admin",
+          "required": false
+        },
+        {
+          "key": "DB_POSTGRESDB_PASSWORD",
+          "description": "PostgreSQL password",
+          "required": false,
+          "secret": true
+        },
+        {
+          "key": "N8N_ENCRYPTION_KEY",
+          "description": "Encryption key for credentials (generate a random string)",
+          "required": true,
+          "secret": true
+        }
+      ],
+      "healthcheck": {
+        "test": "wget --no-verbose --tries=1 --spider http://localhost:5678/healthz || exit 1",
+        "interval": "30s",
+        "timeout": "10s",
+        "retries": 3,
+        "start_period": "45s"
+      },
+      "traefik": {
+        "enabled": true,
+        "port": 5678,
+        "default_domain": "n8n.localhost",
+        "middlewares": ["n8n-headers"]
+      },
+      "dependencies": ["postgres"],
+      "resources": {
+        "memory": "512M",
+        "cpu": "1.0"
+      },
+      "documentation": {
+        "url": "https://docs.n8n.io/",
+        "readme": "n8n is a workflow automation tool that allows you to connect different services and automate tasks. It's designed for technical teams and provides a visual interface for creating complex workflows."
+      }
+    },
+    {
+      "id": "evolution-api",
+      "name": "Evolution API",
+      "slug": "evolution-api",
+      "description": "Complete WhatsApp Multi-Device API with webhook support",
+      "category": "messaging",
+      "tags": ["whatsapp", "api", "messaging", "webhook"],
+      "official": false,
+      "maintainer": "Community",
+      "image": {
+        "repository": "atendai/evolution-api",
+        "registry": "docker.io",
+        "versions": [
+          {
+            "tag": "latest",
+            "description": "Latest stable version",
+            "recommended": true
+          },
+          {
+            "tag": "v2.0.0",
+            "description": "Evolution API v2.0.0"
+          },
+          {
+            "tag": "v1.7.0",
+            "description": "Evolution API v1.7.0"
+          }
+        ],
+        "default_version": "latest"
+      },
+      "ports": [
+        {
+          "internal": 8080,
+          "external": 8080,
+          "protocol": "tcp",
+          "description": "Evolution API HTTP port"
+        }
+      ],
+      "volumes": [
+        {
+          "container_path": "/evolution/instances",
+          "description": "WhatsApp instances data",
+          "required": true
+        },
+        {
+          "container_path": "/evolution/store",
+          "description": "Store data directory",
+          "required": true
+        }
+      ],
+      "environment": [
+        {
+          "key": "SERVER_URL",
+          "description": "Public URL where Evolution API is accessible",
+          "default": "https://evolution-api.localhost",
+          "required": true
+        },
+        {
+          "key": "AUTHENTICATION_API_KEY",
+          "description": "Global API key for authentication",
+          "required": true,
+          "secret": true
+        },
+        {
+          "key": "DATABASE_ENABLED",
+          "description": "Enable database storage",
+          "default": "true",
+          "required": false
+        },
+        {
+          "key": "DATABASE_PROVIDER",
+          "description": "Database provider (postgresql, mysql, mongodb)",
+          "default": "postgresql",
+          "required": false
+        },
+        {
+          "key": "DATABASE_CONNECTION_URI",
+          "description": "Database connection URI",
+          "default": "postgresql://admin:password@postgres:5432/evolution",
+          "required": false,
+          "secret": true
+        },
+        {
+          "key": "DATABASE_SAVE_DATA_INSTANCE",
+          "description": "Save instance data to database",
+          "default": "true",
+          "required": false
+        },
+        {
+          "key": "DATABASE_SAVE_DATA_NEW_MESSAGE",
+          "description": "Save new messages to database",
+          "default": "true",
+          "required": false
+        },
+        {
+          "key": "REDIS_ENABLED",
+          "description": "Enable Redis for caching",
+          "default": "true",
+          "required": false
+        },
+        {
+          "key": "REDIS_URI",
+          "description": "Redis connection URI",
+          "default": "redis://redis:6379",
+          "required": false
+        },
+        {
+          "key": "WEBSOCKET_ENABLED",
+          "description": "Enable WebSocket support",
+          "default": "true",
+          "required": false
+        },
+        {
+          "key": "WEBHOOK_GLOBAL_ENABLED",
+          "description": "Enable global webhook",
+          "default": "false",
+          "required": false
+        },
+        {
+          "key": "WEBHOOK_GLOBAL_URL",
+          "description": "Global webhook URL",
+          "required": false
+        },
+        {
+          "key": "WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS",
+          "description": "Enable webhook by events",
+          "default": "false",
+          "required": false
+        },
+        {
+          "key": "CONFIG_SESSION_PHONE_CLIENT",
+          "description": "Phone client name",
+          "default": "Evolution API",
+          "required": false
+        },
+        {
+          "key": "QRCODE_LIMIT",
+          "description": "QR code generation limit",
+          "default": "30",
+          "required": false
+        }
+      ],
+      "healthcheck": {
+        "test": "curl -f http://localhost:8080/health || exit 1",
+        "interval": "30s",
+        "timeout": "10s",
+        "retries": 3,
+        "start_period": "60s"
+      },
+      "traefik": {
+        "enabled": true,
+        "port": 8080,
+        "default_domain": "evolution-api.localhost",
+        "middlewares": ["evolution-headers"]
+      },
+      "dependencies": ["postgres", "redis"],
+      "resources": {
+        "memory": "1G",
+        "cpu": "1.5"
+      },
+      "documentation": {
+        "url": "https://doc.evolution-api.com/",
+        "readme": "Evolution API is a complete WhatsApp Multi-Device API solution with webhook support, allowing you to integrate WhatsApp into your applications easily."
+      }
+    },
+    {
+      "id": "chatwoot",
+      "name": "Chatwoot",
+      "slug": "chatwoot",
+      "description": "Open-source customer engagement platform with omnichannel support",
+      "category": "customer-support",
+      "tags": ["customer-support", "chat", "helpdesk", "omnichannel"],
+      "official": false,
+      "maintainer": "Community",
+      "image": {
+        "repository": "chatwoot/chatwoot",
+        "registry": "docker.io",
+        "versions": [
+          {
+            "tag": "latest",
+            "description": "Latest stable version",
+            "recommended": true
+          },
+          {
+            "tag": "v3.4.0",
+            "description": "Chatwoot v3.4.0"
+          },
+          {
+            "tag": "v3.3.0",
+            "description": "Chatwoot v3.3.0"
+          }
+        ],
+        "default_version": "latest"
+      },
+      "ports": [
+        {
+          "internal": 3000,
+          "external": 3000,
+          "protocol": "tcp",
+          "description": "Chatwoot web interface"
+        }
+      ],
+      "volumes": [
+        {
+          "container_path": "/app/storage",
+          "description": "Chatwoot storage for uploads and attachments",
+          "required": true
+        },
+        {
+          "container_path": "/app/public",
+          "description": "Chatwoot public assets",
+          "required": false
+        }
+      ],
+      "environment": [
+        {
+          "key": "RAILS_ENV",
+          "description": "Rails environment",
+          "default": "production",
+          "required": true
+        },
+        {
+          "key": "INSTALLATION_ENV",
+          "description": "Installation environment",
+          "default": "docker",
+          "required": false
+        },
+        {
+          "key": "SECRET_KEY_BASE",
+          "description": "Rails secret key (generate with: openssl rand -hex 64)",
+          "required": true,
+          "secret": true
+        },
+        {
+          "key": "FRONTEND_URL",
+          "description": "Public URL where Chatwoot is accessible",
+          "default": "https://chatwoot.localhost",
+          "required": true
+        },
+        {
+          "key": "FORCE_SSL",
+          "description": "Force SSL redirect",
+          "default": "true",
+          "required": false
+        },
+        {
+          "key": "POSTGRES_HOST",
+          "description": "PostgreSQL host",
+          "default": "postgres",
+          "required": true
+        },
+        {
+          "key": "POSTGRES_PORT",
+          "description": "PostgreSQL port",
+          "default": "5432",
+          "required": false
+        },
+        {
+          "key": "POSTGRES_DATABASE",
+          "description": "PostgreSQL database name",
+          "default": "chatwoot",
+          "required": true
+        },
+        {
+          "key": "POSTGRES_USERNAME",
+          "description": "PostgreSQL username",
+          "default": "admin",
+          "required": true
+        },
+        {
+          "key": "POSTGRES_PASSWORD",
+          "description": "PostgreSQL password",
+          "required": true,
+          "secret": true
+        },
+        {
+          "key": "REDIS_URL",
+          "description": "Redis connection URL",
+          "default": "redis://redis:6379",
+          "required": true
+        },
+        {
+          "key": "REDIS_PASSWORD",
+          "description": "Redis password (if authentication is enabled)",
+          "required": false,
+          "secret": true
+        },
+        {
+          "key": "MAILER_SENDER_EMAIL",
+          "description": "Email sender address",
+          "default": "noreply@chatwoot.localhost",
+          "required": false
+        },
+        {
+          "key": "SMTP_DOMAIN",
+          "description": "SMTP domain",
+          "required": false
+        },
+        {
+          "key": "SMTP_ADDRESS",
+          "description": "SMTP server address",
+          "required": false
+        },
+        {
+          "key": "SMTP_PORT",
+          "description": "SMTP server port",
+          "default": "587",
+          "required": false
+        },
+        {
+          "key": "SMTP_USERNAME",
+          "description": "SMTP username",
+          "required": false
+        },
+        {
+          "key": "SMTP_PASSWORD",
+          "description": "SMTP password",
+          "required": false,
+          "secret": true
+        },
+        {
+          "key": "SMTP_AUTHENTICATION",
+          "description": "SMTP authentication method",
+          "default": "plain",
+          "required": false
+        },
+        {
+          "key": "SMTP_ENABLE_STARTTLS_AUTO",
+          "description": "Enable STARTTLS",
+          "default": "true",
+          "required": false
+        },
+        {
+          "key": "ACTIVE_STORAGE_SERVICE",
+          "description": "Active Storage service (local, amazon, google, azure)",
+          "default": "local",
+          "required": false
+        },
+        {
+          "key": "ENABLE_ACCOUNT_SIGNUP",
+          "description": "Enable public account signup",
+          "default": "false",
+          "required": false
+        }
+      ],
+      "command": "docker/entrypoints/rails.sh",
+      "healthcheck": {
+        "test": "curl -f http://localhost:3000/api || exit 1",
+        "interval": "30s",
+        "timeout": "10s",
+        "retries": 5,
+        "start_period": "90s"
+      },
+      "traefik": {
+        "enabled": true,
+        "port": 3000,
+        "default_domain": "chatwoot.localhost",
+        "middlewares": ["chatwoot-headers"]
+      },
+      "dependencies": ["postgres", "redis"],
+      "resources": {
+        "memory": "2G",
+        "cpu": "2.0"
+      },
+      "documentation": {
+        "url": "https://www.chatwoot.com/docs/",
+        "readme": "Chatwoot is an open-source customer engagement platform that helps you connect with customers across multiple channels including website live chat, Facebook, Twitter, WhatsApp, Email, and more."
+      }
+    }
+  ],
+  "categories": [
+    {
+      "id": "database",
+      "name": "Databases",
+      "description": "SQL and NoSQL databases"
+    },
+    {
+      "id": "cache",
+      "name": "Cache & Key-Value Stores",
+      "description": "In-memory data stores"
+    },
+    {
+      "id": "automation",
+      "name": "Automation & Integration",
+      "description": "Workflow automation tools"
+    },
+    {
+      "id": "messaging",
+      "name": "Messaging & Communication",
+      "description": "Messaging platforms and APIs"
+    },
+    {
+      "id": "customer-support",
+      "name": "Customer Support",
+      "description": "Help desk and customer engagement platforms"
+    }
+  ]
+}
