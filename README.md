@@ -43,9 +43,17 @@
 ### Instalação em 1 Comando
 
 ```bash
-# Baixar e executar o script de instalação
+# Baixar e executar o script de instalação (instala CLI global)
 curl -fsSL https://github.com/eduardocarezia/hostfy-cli/raw/refs/heads/main/initialize.sh | bash
 ```
+
+**O que será instalado automaticamente:**
+- ✅ Comando `hostfy` disponível globalmente em `/usr/local/bin`
+- ✅ Docker e Docker Compose (instalação automática se não existir)
+- ✅ Traefik reverse proxy com SSL automático
+- ✅ Rede Docker dedicada (`hostfy-network`)
+- ✅ Catálogo de containers pré-configurados (n8n, Evolution API, Chatwoot, etc.)
+- ✅ Templates de containers (PostgreSQL, Redis, etc.)
 
 Ou baixar primeiro e executar depois:
 
@@ -58,29 +66,30 @@ chmod +x initialize.sh
 ./initialize.sh
 ```
 
-O script vai:
-- ✅ Verificar dependências (Docker, jq, curl)
-- ✅ Baixar todos os arquivos necessários do GitHub
-- ✅ Criar estrutura de diretórios
-- ✅ Configurar rede Docker (`hostfy-network`)
-- ✅ Instalar e iniciar Traefik com SSL automático
-- ✅ Configurar templates de containers
-- ✅ Baixar catálogo de containers
+Após a instalação, o comando `hostfy` estará disponível globalmente:
+
+```bash
+# Verificar instalação
+hostfy --version
+
+# Ver ajuda
+hostfy --help
+```
 
 ### Após a Instalação
 
 ```bash
 # Explorar catálogo disponível
-./hostfy catalog list
+hostfy catalog list
 
 # Buscar containers específicos
-./hostfy catalog search whatsapp
+hostfy catalog search whatsapp
 
 # Ver detalhes completos de um container
-./hostfy catalog info n8n
+hostfy catalog info n8n
 
 # Instalar container do catálogo
-./hostfy install n8n --with-deps --interactive
+hostfy install n8n --with-deps --interactive
 ```
 
 ---
@@ -161,100 +170,100 @@ O script vai:
 
 ```bash
 # Instalar container do catálogo
-./hostfy install <name> [options]
+hostfy install <name> [options]
 
 # Instalar container customizado
-./hostfy install <name> --image <image:tag> [options]
+hostfy install <name> --image <image:tag> [options]
 
 # Atualizar container existente
-./hostfy update <name>
+hostfy update <name>
 
 # Remover container
-./hostfy delete <name>              # Mantém volumes
-./hostfy delete <name> --volumes    # Remove volumes também
+hostfy delete <name>              # Mantém volumes
+hostfy delete <name> --volumes    # Remove volumes também
 
 # Reiniciar container
-./hostfy restart <name>
+hostfy restart <name>
 
 # Pausar/Resumir containers
-./hostfy pause <name>
-./hostfy resume <name>
+hostfy pause <name>
+hostfy resume <name>
 
 # Listar todos containers instalados
-./hostfy list
+hostfy list
 
 # Ver status detalhado de um container
-./hostfy status <name>
+hostfy status <name>
 
 # Ver logs do container
-./hostfy logs <name>                 # Últimas 50 linhas
-./hostfy logs <name> --follow        # Seguir logs em tempo real
-./hostfy logs <name> --tail 100      # Últimas 100 linhas
+hostfy logs <name>                 # Últimas 50 linhas
+hostfy logs <name> --follow        # Seguir logs em tempo real
+hostfy logs <name> --tail 100      # Últimas 100 linhas
 ```
 
 ### Domain Management
 
 ```bash
 # Adicionar domínio a um container
-./hostfy domain <name> --add example.com
-./hostfy domain <name> --add api.example.com --port 8080
+hostfy domain <name> --add example.com
+hostfy domain <name> --add api.example.com --port 8080
 
 # Remover domínio de um container
-./hostfy domain <name> --remove example.com
+hostfy domain <name> --remove example.com
 
 # Listar todos domínios de um container
-./hostfy domain <name> --list
+hostfy domain <name> --list
 ```
 
 ### Catalog Discovery
 
 ```bash
 # Atualizar catálogo do GitHub
-./hostfy catalog update
+hostfy catalog update
 
 # Listar todos containers disponíveis
-./hostfy catalog list
+hostfy catalog list
 
 # Filtrar por categoria
-./hostfy catalog list --category automation
-./hostfy catalog list --category messaging
-./hostfy catalog list --category database
-./hostfy catalog list --category cache
-./hostfy catalog list --category customer-support
+hostfy catalog list --category automation
+hostfy catalog list --category messaging
+hostfy catalog list --category database
+hostfy catalog list --category cache
+hostfy catalog list --category customer-support
 
 # Buscar por termo
-./hostfy catalog search workflow
-./hostfy catalog search whatsapp
-./hostfy catalog search automation
+hostfy catalog search workflow
+hostfy catalog search whatsapp
+hostfy catalog search automation
 
 # Ver detalhes completos de um container
-./hostfy catalog info n8n
-./hostfy catalog info evolution-api
-./hostfy catalog info chatwoot
+hostfy catalog info n8n
+hostfy catalog info evolution-api
+hostfy catalog info chatwoot
 
 # Ver versões disponíveis
-./hostfy catalog versions n8n
+hostfy catalog versions n8n
 
 # Listar todas categorias
-./hostfy catalog categories
+hostfy catalog categories
 
 # Estatísticas do catálogo
-./hostfy catalog stats
+hostfy catalog stats
 ```
 
 ### System Commands
 
 ```bash
 # (Re)Inicializar sistema Hostfy
-./hostfy init
+hostfy init
 
 # Ver versão do Hostfy
-./hostfy version
+hostfy version
 
 # Ver ajuda
-./hostfy help
-./hostfy --help
-./hostfy -h
+hostfy help
+hostfy --help
+hostfy -h
 ```
 
 ---
@@ -265,13 +274,13 @@ O script vai:
 
 ```bash
 # Opção 1: Instalação interativa (recomendado para primeira vez)
-./hostfy install n8n \
+hostfy install n8n \
   --with-deps \
   --interactive \
   --domain n8n.myapp.com
 
 # Opção 2: Instalação com variáveis explícitas
-./hostfy install n8n \
+hostfy install n8n \
   --with-deps \
   --domain n8n.myapp.com \
   --env N8N_BASIC_AUTH_ACTIVE=true \
@@ -297,7 +306,7 @@ O script vai:
 API_KEY=$(openssl rand -hex 32)
 
 # Instalar com todas dependências
-./hostfy install evolution-api \
+hostfy install evolution-api \
   --with-deps \
   --domain evolution.myapp.com \
   --env AUTHENTICATION_API_KEY=$API_KEY \
@@ -331,7 +340,7 @@ SECRET_KEY=$(openssl rand -hex 64)
 POSTGRES_PASSWORD=$(openssl rand -base64 32)
 
 # Instalar com configuração completa
-./hostfy install chatwoot \
+hostfy install chatwoot \
   --with-deps \
   --domain chatwoot.myapp.com \
   --env SECRET_KEY_BASE=$SECRET_KEY \
@@ -373,8 +382,8 @@ echo -e "${BLUE}🚀 Iniciando deploy da stack completa...${NC}\n"
 
 # 1. Infraestrutura base
 echo -e "${GREEN}📦 Instalando infraestrutura base...${NC}"
-./hostfy install postgres --env POSTGRES_PASSWORD=$(openssl rand -base64 32)
-./hostfy install redis --env REDIS_PASSWORD=$(openssl rand -base64 32)
+hostfy install postgres --env POSTGRES_PASSWORD=$(openssl rand -base64 32)
+hostfy install redis --env REDIS_PASSWORD=$(openssl rand -base64 32)
 
 # Aguardar containers ficarem healthy
 sleep 10
@@ -387,17 +396,17 @@ docker exec postgres psql -U admin -c "CREATE DATABASE chatwoot;"
 
 # 3. Instalar aplicações
 echo -e "${GREEN}🔧 Instalando n8n...${NC}"
-./hostfy install n8n --domain n8n.myapp.com --interactive
+hostfy install n8n --domain n8n.myapp.com --interactive
 
 echo -e "${GREEN}📱 Instalando Evolution API...${NC}"
-./hostfy install evolution-api --domain evolution.myapp.com --interactive
+hostfy install evolution-api --domain evolution.myapp.com --interactive
 
 echo -e "${GREEN}💬 Instalando Chatwoot...${NC}"
-./hostfy install chatwoot --domain chatwoot.myapp.com --interactive
+hostfy install chatwoot --domain chatwoot.myapp.com --interactive
 
 # 4. Verificar instalação
 echo -e "${GREEN}✅ Verificando instalação...${NC}"
-./hostfy list
+hostfy list
 
 echo -e "${BLUE}🎉 Deploy concluído!${NC}\n"
 echo "Serviços disponíveis:"
@@ -411,7 +420,7 @@ echo "  - Traefik Dashboard: http://traefik.localhost:8080"
 
 ```bash
 # Instalar aplicação customizada
-./hostfy install myapp \
+hostfy install myapp \
   --image mycompany/myapp:v1.2.3 \
   --port 3000 \
   --domain myapp.example.com \
@@ -422,24 +431,24 @@ echo "  - Traefik Dashboard: http://traefik.localhost:8080"
   --env REDIS_URL=redis://redis:6379
 
 # Adicionar domínio adicional depois
-./hostfy domain myapp --add api.myapp.com --port 3000
-./hostfy domain myapp --add admin.myapp.com --port 3000
+hostfy domain myapp --add api.myapp.com --port 3000
+hostfy domain myapp --add admin.myapp.com --port 3000
 ```
 
 ### Exemplo 6: Desenvolvimento Local
 
 ```bash
 # Instalar para desenvolvimento (sem domínio real)
-./hostfy install n8n --env N8N_HOST=localhost
+hostfy install n8n --env N8N_HOST=localhost
 
 # Acessar via localhost
 # http://localhost:5678
 
 # Ver logs em tempo real
-./hostfy logs n8n --follow
+hostfy logs n8n --follow
 
 # Reiniciar após mudanças
-./hostfy restart n8n
+hostfy restart n8n
 ```
 
 ---
@@ -716,7 +725,7 @@ networks:
 EOF
 
 # Usar template customizado
-./hostfy install minha-app --template docker/templates/minha-app.yml
+hostfy install minha-app --template docker/templates/minha-app.yml
 ```
 
 ---
@@ -743,7 +752,7 @@ EOF
 
 3. **Instale o container com o domínio**
    ```bash
-   ./hostfy install n8n --domain n8n.myapp.com
+   hostfy install n8n --domain n8n.myapp.com
    ```
 
 4. **Traefik gerará SSL automaticamente via Let's Encrypt**
@@ -787,14 +796,14 @@ cp minha-chave.key docker/traefik/certs/
 
 ```bash
 # Container com múltiplos domínios
-./hostfy install n8n --domain n8n.myapp.com
+hostfy install n8n --domain n8n.myapp.com
 
 # Adicionar domínios adicionais
-./hostfy domain n8n --add automation.myapp.com
-./hostfy domain n8n --add workflows.myapp.com
+hostfy domain n8n --add automation.myapp.com
+hostfy domain n8n --add workflows.myapp.com
 
 # Listar todos domínios
-./hostfy domain n8n --list
+hostfy domain n8n --list
 
 # Resultado:
 # n8n.myapp.com
@@ -861,7 +870,7 @@ read -p "Continuar? (y/N): " confirm
 echo "🔄 Iniciando restore..."
 
 # 1. Parar todos containers
-./hostfy list | grep -v "NAME" | awk '{print $1}' | xargs -I {} ./hostfy pause {}
+hostfy list | grep -v "NAME" | awk '{print $1}' | xargs -I {} hostfy pause {}
 
 # 2. Restaurar configurações
 cp -r "$BACKUP_DIR/config/" ./
@@ -886,7 +895,7 @@ cp "$BACKUP_DIR/acme.json" docker/traefik/
 chmod 600 docker/traefik/acme.json
 
 # 6. Reiniciar containers
-./hostfy list | grep -v "NAME" | awk '{print $1}' | xargs -I {} ./hostfy resume {}
+hostfy list | grep -v "NAME" | awk '{print $1}' | xargs -I {} hostfy resume {}
 
 echo "✅ Restore concluído!"
 ```
@@ -1104,7 +1113,7 @@ curl -fsSL https://github.com/eduardocarezia/hostfy-cli/raw/refs/heads/main/cata
 jq empty commands/catalog/containers-catalog.json
 
 # 4. Atualizar forçado
-./hostfy catalog update
+hostfy catalog update
 ```
 
 ### Problema: SSL não funciona
@@ -1149,7 +1158,7 @@ Health check failed
 **Solução:**
 ```bash
 # 1. Ver logs do container
-./hostfy logs nome-container
+hostfy logs nome-container
 
 # 2. Verificar health check
 docker inspect nome-container | jq '.[0].State.Health'
@@ -1158,8 +1167,8 @@ docker inspect nome-container | jq '.[0].State.Health'
 cat docker/containers/nome-container.yml
 
 # 4. Verificar se dependências estão rodando
-./hostfy status postgres
-./hostfy status redis
+hostfy status postgres
+hostfy status redis
 
 # 5. Testar conexão de rede
 docker exec nome-container ping -c 3 postgres
@@ -1182,7 +1191,7 @@ ECONNREFUSED postgres:5432
 **Solução:**
 ```bash
 # 1. Verificar se PostgreSQL está rodando
-./hostfy status postgres
+hostfy status postgres
 docker exec postgres pg_isready
 
 # 2. Verificar conexão de rede
@@ -1211,7 +1220,7 @@ export HOSTFY_DEBUG=true
 tail -f logs/hostfy.log
 
 # Ver logs de um container específico
-./hostfy logs nome-container --follow --tail 100
+hostfy logs nome-container --follow --tail 100
 
 # Ver logs do Traefik
 docker logs traefik --follow
@@ -1220,8 +1229,8 @@ docker logs traefik --follow
 docker compose -f docker/containers/* logs --follow
 
 # Filtrar erros
-./hostfy logs nome-container | grep -i error
-./hostfy logs nome-container | grep -i warning
+hostfy logs nome-container | grep -i error
+hostfy logs nome-container | grep -i warning
 ```
 
 ---
@@ -1247,14 +1256,14 @@ R: Mínimo 20GB, recomendado 50GB+. Cada container varia, mas PostgreSQL + Redis
 **P: Como adiciono um container que não está no catálogo?**
 R: Use o comando `install` com a flag `--image`:
 ```bash
-./hostfy install meu-app --image username/meu-app:latest --port 8080
+hostfy install meu-app --image username/meu-app:latest --port 8080
 ```
 
 **P: Posso modificar o catálogo?**
 R: Sim! Edite `commands/catalog/containers-catalog.json` e faça um PR no GitHub para compartilhar.
 
 **P: Como atualizo um container para nova versão?**
-R: Use `./hostfy update nome-container` ou edite a versão no arquivo compose e execute `docker compose up -d`.
+R: Use `hostfy update nome-container` ou edite a versão no arquivo compose e execute `docker compose up -d`.
 
 **P: Containers podem se comunicar entre si?**
 R: Sim! Todos estão na mesma rede (`hostfy-network`). Use o nome do container como hostname.
@@ -1342,10 +1351,10 @@ R: Provavelmente OOM (Out of Memory). Aumente RAM disponível ou limite uso de o
 **P: Como removo TUDO e começo do zero?**
 R:
 ```bash
-./hostfy list | awk '{print $1}' | xargs -I {} ./hostfy delete {} --volumes
+hostfy list | awk '{print $1}' | xargs -I {} hostfy delete {} --volumes
 docker compose -f docker/traefik/docker-compose.yml down -v
 rm -rf docker/ config/ logs/
-./hostfy init
+hostfy init
 ```
 
 ---
@@ -1377,7 +1386,7 @@ Contribuições são muito bem-vindas! Veja como você pode ajudar:
 2. Adicione entrada em `commands/catalog/containers-catalog.json`
 3. Teste a instalação:
    ```bash
-   ./hostfy install seu-container --interactive
+   hostfy install seu-container --interactive
    ```
 4. Documente variáveis de ambiente obrigatórias
 5. Crie Pull Request com descrição detalhada
@@ -1486,7 +1495,7 @@ git checkout -b feature/minha-feature
 # 4. Testar localmente
 cd commands
 ./initialize.sh
-./hostfy <seu-comando>
+hostfy <seu-comando>
 
 # 5. Commit e push
 git add .

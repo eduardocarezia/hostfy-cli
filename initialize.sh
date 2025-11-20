@@ -848,19 +848,60 @@ verify_installation() {
 }
 
 # ========================================
-# Create Convenience Symlink
+# Install Hostfy CLI Globally
 # ========================================
-create_symlink() {
-    log_step "Creating convenience symlink..."
+install_cli() {
+    log_step "Installing Hostfy CLI globally..."
 
-    if [[ -f "$HOSTFY_ROOT/hostfy" ]]; then
-        rm -f "$HOSTFY_ROOT/hostfy"
+    local install_dir="/usr/local/bin"
+    local cli_name="hostfy"
+
+    # Create wrapper script that works from any directory
+    cat > "$COMMANDS_DIR/hostfy-wrapper.sh" <<EOF
+#!/bin/bash
+# Hostfy CLI Wrapper - Can be executed from anywhere
+
+# Find Hostfy installation directory
+HOSTFY_INSTALL_DIR="$COMMANDS_DIR"
+
+# Export paths for the main script
+export COMMANDS_DIR="\$HOSTFY_INSTALL_DIR"
+export LIB_DIR="\$COMMANDS_DIR/lib"
+export CATALOG_DIR="\$COMMANDS_DIR/catalog"
+export HOSTFY_ROOT="\$(dirname "\$COMMANDS_DIR")"
+export DOCKER_DIR="\$HOSTFY_ROOT/docker"
+export CONFIG_DIR="\$HOSTFY_ROOT/config"
+export LOGS_DIR="\$HOSTFY_ROOT/logs"
+
+# Execute the main script
+exec "\$COMMANDS_DIR/hostfy.sh" "\$@"
+EOF
+
+    chmod +x "$COMMANDS_DIR/hostfy-wrapper.sh"
+
+    # Install globally (requires sudo on Linux)
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        if [[ -w "$install_dir" ]]; then
+            ln -sf "$COMMANDS_DIR/hostfy-wrapper.sh" "$install_dir/$cli_name"
+            log_success "Hostfy CLI installed: $install_dir/$cli_name"
+        else
+            sudo ln -sf "$COMMANDS_DIR/hostfy-wrapper.sh" "$install_dir/$cli_name"
+            log_success "Hostfy CLI installed: $install_dir/$cli_name (with sudo)"
+        fi
+    else
+        # Linux
+        sudo ln -sf "$COMMANDS_DIR/hostfy-wrapper.sh" "$install_dir/$cli_name"
+        log_success "Hostfy CLI installed: $install_dir/$cli_name"
     fi
 
-    ln -s "$COMMANDS_DIR/hostfy.sh" "$HOSTFY_ROOT/hostfy"
-    chmod +x "$HOSTFY_ROOT/hostfy"
-
-    log_success "Created symlink: ./hostfy -> commands/hostfy.sh"
+    # Verify installation
+    if command -v hostfy &> /dev/null; then
+        log_success "Hostfy CLI is now available globally!"
+        log_info "You can run 'hostfy' from anywhere"
+    else
+        log_warning "Hostfy installed but may need to restart your terminal"
+    fi
 }
 
 # ========================================
@@ -872,14 +913,14 @@ show_completion() {
     echo "   ✅ Hostfy Installation Complete!"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
-    log_success "Hostfy is ready to use!"
+    log_success "Hostfy CLI is ready to use globally!"
     echo ""
     echo "Quick Start:"
-    echo "  1. Update catalog:        ./hostfy catalog update"
-    echo "  2. Browse containers:     ./hostfy catalog list"
-    echo "  3. Search containers:     ./hostfy catalog search whatsapp"
-    echo "  4. Install from catalog:  ./hostfy install n8n --with-deps"
-    echo "  5. List containers:       ./hostfy list"
+    echo "  1. Update catalog:        hostfy catalog update"
+    echo "  2. Browse containers:     hostfy catalog list"
+    echo "  3. Search containers:     hostfy catalog search whatsapp"
+    echo "  4. Install from catalog:  hostfy install n8n --with-deps"
+    echo "  5. List containers:       hostfy list"
     echo ""
     echo "Available in catalog:"
     echo "  - postgres       PostgreSQL database"
@@ -890,8 +931,11 @@ show_completion() {
     echo ""
     echo "Traefik Dashboard: http://traefik.localhost:8080"
     echo ""
-    echo "For help:          ./hostfy --help"
+    echo "For help:          hostfy --help"
     echo "Documentation:     https://github.com/${GITHUB_REPO}"
+    echo ""
+    echo "Note: If 'hostfy' command is not found, restart your terminal or run:"
+    echo "      export PATH=\"/usr/local/bin:\$PATH\""
     echo ""
 }
 
@@ -929,7 +973,7 @@ main() {
     setup_config_files
     echo ""
 
-    create_symlink
+    install_cli
     echo ""
 
     verify_installation
