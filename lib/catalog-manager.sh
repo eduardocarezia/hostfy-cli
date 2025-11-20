@@ -81,9 +81,30 @@ catalog_get_info() {
 
     catalog_ensure_updated || return 1
 
-    jq --arg id "$container_id" '
+    if [[ ! -f "$CATALOG_FILE" ]]; then
+        log_error "Catalog file not found: $CATALOG_FILE"
+        return 1
+    fi
+
+    # Validate catalog JSON first
+    if ! jq empty "$CATALOG_FILE" 2>/dev/null; then
+        log_error "Catalog file is not valid JSON: $CATALOG_FILE"
+        return 1
+    fi
+
+    local result=$(jq --arg id "$container_id" '
         .containers[] | select(.slug == $id or .id == $id)
-    ' "$CATALOG_FILE" 2>/dev/null
+    ' "$CATALOG_FILE" 2>&1)
+
+    local exit_code=$?
+
+    if [[ $exit_code -ne 0 ]]; then
+        log_error "jq error while reading catalog: $result"
+        return 1
+    fi
+
+    # Return result (may be empty if container not found)
+    echo "$result"
 }
 
 catalog_exists() {
@@ -251,13 +272,15 @@ catalog_install() {
 
     if [[ -z "$info" ]]; then
         log_error "Container '$container_id' not found in catalog"
+        log_info "Available containers: $(catalog_list | head -5)"
+        log_info "Use 'hostfy catalog list' to see all available containers"
         return 1
     fi
 
     log_info "Installing '$container_id' from catalog..."
 
     # Parse installation options
-    local version=$(echo "$info" | jq -r '.image.default_version')
+    local version=""
     local with_deps=false
     local interactive=false
     local custom_domain=""
@@ -292,22 +315,71 @@ catalog_install() {
         i=$((i + 1))
     done
 
-    # Check and install dependencies
-    if [[ "$with_deps" == "true" ]]; then
-        local deps=$(echo "$info" | jq -r '.dependencies[]?' 2>/dev/null)
-        if [[ -n "$deps" ]]; then
-            log_info "📦 Installing dependencies..."
-            while IFS= read -r dep; do
-                if [[ -n "$dep" ]]; then
-                    if container_exists "$dep"; then
-                        log_success "  ✅ $dep (already installed)"
-                    else
-                        log_info "  📦 Installing $dep..."
-                        catalog_install "$dep" "${args[@]}"
-                    fi
-                fi
-            done <<< "$deps"
+    # Extract and validate version
+    if [[ -z "$version" ]]; then
+        version=$(echo "$info" | jq -r '.image.default_version // empty')
+        if [[ -z "$version" ]]; then
+            log_error "No default version found for '$container_id'"
+            return 1
         fi
+    fi
+
+    log_debug "Using version: $version"
+
+    # Check dependencies FIRST (before attempting installation)
+    local deps=$(echo "$info" | jq -r '.dependencies[]?' 2>/dev/null)
+    if [[ -n "$deps" ]]; then
+        local missing_deps=()
+        local stopped_deps=()
+
+        while IFS= read -r dep; do
+            if [[ -n "$dep" ]]; then
+                if ! container_exists "$dep"; then
+                    missing_deps+=("$dep")
+                elif ! container_is_running "$dep"; then
+                    stopped_deps+=("$dep")
+                fi
+            fi
+        done <<< "$deps"
+
+        # Handle missing dependencies
+        if [[ ${#missing_deps[@]} -gt 0 ]]; then
+            if [[ "$with_deps" == "true" ]]; then
+                log_info "📦 Installing missing dependencies: ${missing_deps[*]}"
+                for dep in "${missing_deps[@]}"; do
+                    log_info "  📦 Installing $dep..."
+                    # Install dependency WITHOUT parent args (no --domain, etc.)
+                    if ! catalog_install "$dep"; then
+                        log_error "Failed to install dependency: $dep"
+                        return 1
+                    fi
+                done
+            else
+                log_error "Missing required dependencies: ${missing_deps[*]}"
+                log_info "Install with: hostfy install $container_id --with-deps"
+                return 1
+            fi
+        fi
+
+        # Handle stopped dependencies
+        if [[ ${#stopped_deps[@]} -gt 0 ]]; then
+            log_info "Starting stopped dependencies: ${stopped_deps[*]}"
+            for dep in "${stopped_deps[@]}"; do
+                log_info "  ▶ Starting $dep..."
+                container_start "$dep"
+            done
+        fi
+
+        # Verify all dependencies are running
+        while IFS= read -r dep; do
+            if [[ -n "$dep" ]]; then
+                if ! container_is_running "$dep"; then
+                    log_error "Dependency '$dep' is not running"
+                    return 1
+                fi
+                log_success "  ✅ $dep (running)"
+            fi
+        done <<< "$deps"
     fi
 
     # Interactive mode: prompt for required environment variables
@@ -345,10 +417,33 @@ catalog_install() {
         echo ""
     fi
 
-    # Build installation arguments
-    local repository=$(echo "$info" | jq -r '.image.repository')
+    # Build installation arguments - Extract and validate repository
+    local repository=$(echo "$info" | jq -r '.image.repository // empty')
+    if [[ -z "$repository" ]]; then
+        log_error "No repository found in catalog for '$container_id'"
+        log_debug "Container info: $info"
+        return 1
+    fi
+
     local image="${repository}:${version}"
-    local port=$(echo "$info" | jq -r '.traefik.port // .ports[0].external // "80"')
+    log_debug "Image: $image"
+
+    # Extract port with proper fallback
+    local port=$(echo "$info" | jq -r '
+        if .traefik.port then
+            .traefik.port
+        elif .ports[0].external then
+            .ports[0].external
+        else
+            80
+        end
+    ')
+
+    if [[ -z "$port" || "$port" == "null" ]]; then
+        port="80"
+    fi
+
+    log_debug "Port: $port"
 
     # Determine domain
     local domain="$custom_domain"

@@ -17,6 +17,7 @@ source "$LIB_DIR/template-engine.sh"
 source "$LIB_DIR/domain-manager.sh"
 source "$LIB_DIR/container-manager.sh"
 source "$LIB_DIR/catalog-manager.sh"
+source "$LIB_DIR/api-manager.sh"
 
 VERSION="1.0.0"
 
@@ -342,6 +343,43 @@ cmd_catalog() {
 }
 
 # ========================================
+# API Operations Commands
+# ========================================
+
+cmd_api() {
+    local subcommand="${1:-status}"
+
+    if [[ $# -gt 0 ]]; then
+        shift
+    fi
+
+    case "$subcommand" in
+        install)
+            api_install
+            ;;
+        start)
+            api_start
+            ;;
+        stop)
+            api_stop
+            ;;
+        status)
+            api_status
+            ;;
+        restart)
+            api_stop
+            sleep 2
+            api_start
+            ;;
+        *)
+            log_error "Unknown API subcommand: $subcommand"
+            echo "Available subcommands: install, start, stop, restart, status"
+            return 1
+            ;;
+    esac
+}
+
+# ========================================
 # System Operations Commands
 # ========================================
 
@@ -398,6 +436,13 @@ CATALOG OPERATIONS:
     catalog versions <id>  List available versions
     catalog categories     List all categories
     catalog stats          Show catalog statistics
+
+API OPERATIONS:
+    api start              Start API server
+    api stop               Stop API server
+    api restart            Restart API server
+    api status             Check API server status
+    api install            Install API dependencies
 
 INSTALLATION OPTIONS:
     --image <image:tag>    Container image (required for custom)
@@ -508,6 +553,11 @@ main() {
         # Catalog operations
         catalog)
             cmd_catalog "$@"
+            ;;
+
+        # API operations
+        api)
+            cmd_api "$@"
             ;;
 
         # System operations
