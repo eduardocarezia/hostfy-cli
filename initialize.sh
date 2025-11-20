@@ -1,35 +1,75 @@
 #!/bin/bash
-# commands/initialize.sh
-# Hostfy System Initialization Script
+# initialize.sh
+# Hostfy System Bootstrap and Initialization Script
+# This script downloads all necessary files and sets up the Hostfy system
 
 set -euo pipefail
 
 # ========================================
-# Script Directory Setup
-# ========================================
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LIB_DIR="$SCRIPT_DIR/lib"
-
-# Load libraries
-source "$LIB_DIR/utils.sh"
-source "$LIB_DIR/network-manager.sh"
-source "$LIB_DIR/catalog-manager.sh"
-
-# ========================================
 # Configuration
 # ========================================
+GITHUB_REPO="eduardocarezia/hostfy-cli"
+GITHUB_BRANCH="main"
+GITHUB_RAW_URL="https://github.com/${GITHUB_REPO}/raw/refs/heads/${GITHUB_BRANCH}"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMMANDS_DIR="$SCRIPT_DIR"
+LIB_DIR="$COMMANDS_DIR/lib"
+CATALOG_DIR="$COMMANDS_DIR/catalog"
+HOSTFY_ROOT="$(dirname "$COMMANDS_DIR")"
+DOCKER_DIR="$HOSTFY_ROOT/docker"
+CONFIG_DIR="$HOSTFY_ROOT/config"
+LOGS_DIR="$HOSTFY_ROOT/logs"
+
 HOSTFY_NETWORK="${HOSTFY_NETWORK:-hostfy-network}"
 TRAEFIK_VERSION="${TRAEFIK_VERSION:-v2.10}"
+CATALOG_URL="${CATALOG_URL:-${GITHUB_RAW_URL}/commands/catalog/containers-catalog.json}"
+
+# ========================================
+# Colors and Formatting
+# ========================================
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# ========================================
+# Logging Functions
+# ========================================
+log_info() {
+    echo -e "${BLUE}ℹ${NC} $1"
+}
+
+log_success() {
+    echo -e "${GREEN}✅${NC} $1"
+}
+
+log_warning() {
+    echo -e "${YELLOW}⚠${NC}  $1"
+}
+
+log_error() {
+    echo -e "${RED}❌${NC} $1" >&2
+}
+
+log_step() {
+    echo -e "${CYAN}▶${NC}  $1"
+}
 
 # ========================================
 # Welcome Banner
 # ========================================
 show_banner() {
     echo ""
-    echo ""
-    echo "   =� Hostfy Container Management System"
-    echo "   Initialization Script"
-    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "   🚀 Hostfy Container Management System"
+    echo "   Bootstrap & Initialization Script"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "Repository: https://github.com/${GITHUB_REPO}"
+    echo "Branch: ${GITHUB_BRANCH}"
     echo ""
 }
 
@@ -58,10 +98,12 @@ check_system_dependencies() {
     fi
 
     # Check Docker Compose
-    if ! check_docker_compose; then
-        missing_deps+=("docker-compose")
+    if docker compose version &> /dev/null 2>&1; then
+        log_success "Docker Compose is installed (v2)"
+    elif command -v docker-compose &> /dev/null; then
+        log_success "Docker Compose is installed (v1)"
     else
-        log_success "Docker Compose is installed"
+        missing_deps+=("docker-compose")
     fi
 
     # Check jq
@@ -118,6 +160,8 @@ setup_directories() {
     log_step "Setting up directory structure..."
 
     local dirs=(
+        "$COMMANDS_DIR"
+        "$LIB_DIR"
         "$CONFIG_DIR"
         "$DOCKER_DIR"
         "$DOCKER_DIR/traefik"
@@ -132,11 +176,72 @@ setup_directories() {
     for dir in "${dirs[@]}"; do
         if [[ ! -d "$dir" ]]; then
             mkdir -p "$dir"
-            log_debug "Created directory: $dir"
         fi
     done
 
     log_success "Directory structure created"
+}
+
+# ========================================
+# Download Files from GitHub
+# ========================================
+download_file() {
+    local url="$1"
+    local output="$2"
+
+    if curl -fsSL "$url" -o "$output" 2>/dev/null; then
+        return 0
+    else
+        log_error "Failed to download: $url"
+        return 1
+    fi
+}
+
+download_hostfy_files() {
+    log_step "Downloading Hostfy files from GitHub..."
+
+    # Download main CLI
+    log_info "Downloading hostfy.sh..."
+    if download_file "${GITHUB_RAW_URL}/commands/hostfy.sh" "$COMMANDS_DIR/hostfy.sh"; then
+        chmod +x "$COMMANDS_DIR/hostfy.sh"
+        log_success "hostfy.sh downloaded"
+    else
+        log_error "Failed to download hostfy.sh"
+        return 1
+    fi
+
+    # Download library files
+    local lib_files=(
+        "utils.sh"
+        "network-manager.sh"
+        "template-engine.sh"
+        "domain-manager.sh"
+        "container-manager.sh"
+        "catalog-manager.sh"
+    )
+
+    log_info "Downloading library files..."
+    for lib_file in "${lib_files[@]}"; do
+        log_info "  - $lib_file"
+        if download_file "${GITHUB_RAW_URL}/commands/lib/${lib_file}" "$LIB_DIR/${lib_file}"; then
+            chmod +x "$LIB_DIR/${lib_file}"
+        else
+            log_error "Failed to download $lib_file"
+            return 1
+        fi
+    done
+
+    log_success "All library files downloaded"
+
+    # Download catalog
+    log_info "Downloading container catalog..."
+    if download_file "$CATALOG_URL" "$CATALOG_DIR/containers-catalog.json"; then
+        log_success "Container catalog downloaded"
+    else
+        log_warning "Could not download catalog, but system will work with custom containers"
+    fi
+
+    log_success "All Hostfy files downloaded successfully"
 }
 
 # ========================================
@@ -145,11 +250,10 @@ setup_directories() {
 setup_network() {
     log_step "Setting up Docker network: $HOSTFY_NETWORK"
 
-    if network_exists "$HOSTFY_NETWORK"; then
+    if docker network ls --format '{{.Name}}' | grep -q "^${HOSTFY_NETWORK}$"; then
         log_info "Network already exists"
-        network_inspect "$HOSTFY_NETWORK"
     else
-        if network_create "$HOSTFY_NETWORK"; then
+        if docker network create --driver bridge --subnet 172.20.0.0/16 "$HOSTFY_NETWORK" &> /dev/null; then
             log_success "Network created successfully"
         else
             log_error "Failed to create network"
@@ -255,11 +359,9 @@ EOF
         log_success "Created acme.json for SSL certificates"
     fi
 
-    # Create dynamic configuration directory and placeholder
+    # Create dynamic configuration directory
     mkdir -p "$DOCKER_DIR/traefik/dynamic"
-    cat > "$DOCKER_DIR/traefik/dynamic/.gitkeep" <<EOF
-# Dynamic Traefik configuration files will be placed here
-EOF
+    mkdir -p "$DOCKER_DIR/traefik/logs"
 
     log_success "Traefik configuration completed"
 }
@@ -267,24 +369,26 @@ EOF
 start_traefik() {
     log_step "Starting Traefik..."
 
-    local traefik_compose="$DOCKER_DIR/traefik/docker-compose.yml"
-    local compose_cmd=$(get_docker_compose_cmd)
+    cd "$DOCKER_DIR/traefik"
 
-    if [[ -z "$compose_cmd" ]]; then
+    local compose_cmd=""
+    if docker compose version &> /dev/null 2>&1; then
+        compose_cmd="docker compose"
+    elif command -v docker-compose &> /dev/null; then
+        compose_cmd="docker-compose"
+    else
         log_error "Docker Compose not found"
         return 1
     fi
 
-    cd "$DOCKER_DIR/traefik"
-
-    if $compose_cmd up -d 2>&1 | tee -a "$LOG_FILE"; then
+    if $compose_cmd up -d 2>&1; then
         log_success "Traefik started successfully"
 
         # Wait for Traefik to be ready
         log_info "Waiting for Traefik to be ready..."
         sleep 5
 
-        if container_is_running "traefik"; then
+        if docker ps --format '{{.Names}}' | grep -q "^traefik$"; then
             log_success "Traefik is running"
             log_info "Dashboard available at: http://traefik.localhost:8080"
         else
@@ -404,21 +508,6 @@ networks:
 EOF
 
     log_success "Created base container template"
-
-    log_success "All templates created"
-}
-
-# ========================================
-# Catalog Setup
-# ========================================
-setup_catalog() {
-    log_step "Setting up container catalog..."
-
-    if catalog_update true; then
-        log_success "Catalog initialized"
-    else
-        log_warning "Could not download catalog, but system will work with custom containers"
-    fi
 }
 
 # ========================================
@@ -428,14 +517,14 @@ setup_config_files() {
     log_step "Setting up configuration files..."
 
     # Initialize registries
-    ensure_json_file "$CONTAINERS_REGISTRY" '{"containers":[]}'
+    echo '{"containers":[]}' > "$CONFIG_DIR/containers.json"
     log_success "Created containers registry"
 
-    ensure_json_file "$DOMAINS_REGISTRY" '{"domains":[]}'
+    echo '{"domains":[]}' > "$CONFIG_DIR/domains.json"
     log_success "Created domains registry"
 
     # Create settings file
-    cat > "$SETTINGS_FILE" <<EOF
+    cat > "$CONFIG_DIR/settings.json" <<EOF
 {
   "network": {
     "name": "$HOSTFY_NETWORK",
@@ -451,7 +540,7 @@ setup_config_files() {
   },
   "catalog": {
     "url": "$CATALOG_URL",
-    "cache_time": $CATALOG_CACHE_TIME
+    "cache_time": 3600
   }
 }
 EOF
@@ -468,27 +557,25 @@ verify_installation() {
     local issues=()
 
     # Check network
-    if ! network_exists "$HOSTFY_NETWORK"; then
+    if ! docker network ls --format '{{.Name}}' | grep -q "^${HOSTFY_NETWORK}$"; then
         issues+=("Network '$HOSTFY_NETWORK' not found")
     fi
 
     # Check Traefik
-    if ! container_is_running "traefik"; then
+    if ! docker ps --format '{{.Names}}' | grep -q "^traefik$"; then
         issues+=("Traefik is not running")
     fi
 
-    # Check directories
-    local required_dirs=(
-        "$CONFIG_DIR"
-        "$DOCKER_DIR/traefik"
-        "$DOCKER_DIR/templates"
-        "$CATALOG_DIR"
-        "$LOGS_DIR"
-    )
+    # Check hostfy.sh
+    if [[ ! -f "$COMMANDS_DIR/hostfy.sh" ]]; then
+        issues+=("hostfy.sh not found")
+    fi
 
-    for dir in "${required_dirs[@]}"; do
-        if [[ ! -d "$dir" ]]; then
-            issues+=("Directory missing: $dir")
+    # Check library files
+    local lib_files=("utils.sh" "network-manager.sh" "template-engine.sh" "domain-manager.sh" "container-manager.sh" "catalog-manager.sh")
+    for lib_file in "${lib_files[@]}"; do
+        if [[ ! -f "$LIB_DIR/$lib_file" ]]; then
+            issues+=("lib/$lib_file not found")
         fi
     done
 
@@ -505,26 +592,50 @@ verify_installation() {
 }
 
 # ========================================
+# Create Convenience Symlink
+# ========================================
+create_symlink() {
+    log_step "Creating convenience symlink..."
+
+    if [[ -f "$HOSTFY_ROOT/hostfy" ]]; then
+        rm -f "$HOSTFY_ROOT/hostfy"
+    fi
+
+    ln -s "$COMMANDS_DIR/hostfy.sh" "$HOSTFY_ROOT/hostfy"
+    chmod +x "$HOSTFY_ROOT/hostfy"
+
+    log_success "Created symlink: ./hostfy -> commands/hostfy.sh"
+}
+
+# ========================================
 # Completion Message
 # ========================================
 show_completion() {
     echo ""
-    echo ""
-    echo "    Hostfy Initialization Complete!"
-    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "   ✅ Hostfy Installation Complete!"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
     log_success "Hostfy is ready to use!"
     echo ""
     echo "Quick Start:"
     echo "  1. Update catalog:        ./hostfy catalog update"
     echo "  2. Browse containers:     ./hostfy catalog list"
-    echo "  3. Install PostgreSQL:    ./hostfy install postgres"
-    echo "  4. Install Redis:         ./hostfy install redis"
+    echo "  3. Search containers:     ./hostfy catalog search whatsapp"
+    echo "  4. Install from catalog:  ./hostfy install n8n --with-deps"
     echo "  5. List containers:       ./hostfy list"
+    echo ""
+    echo "Available in catalog:"
+    echo "  - postgres       PostgreSQL database"
+    echo "  - redis          Redis cache"
+    echo "  - n8n            Workflow automation"
+    echo "  - evolution-api  WhatsApp Multi-Device API"
+    echo "  - chatwoot       Customer engagement platform"
     echo ""
     echo "Traefik Dashboard: http://traefik.localhost:8080"
     echo ""
-    echo "For help:                   ./hostfy --help"
+    echo "For help:          ./hostfy --help"
+    echo "Documentation:     https://github.com/${GITHUB_REPO}"
     echo ""
 }
 
@@ -534,7 +645,7 @@ show_completion() {
 main() {
     show_banner
 
-    log_info "Starting Hostfy initialization..."
+    log_info "Starting Hostfy installation..."
     echo ""
 
     # Run initialization steps
@@ -542,6 +653,9 @@ main() {
     echo ""
 
     setup_directories
+    echo ""
+
+    download_hostfy_files
     echo ""
 
     setup_network
@@ -559,7 +673,7 @@ main() {
     setup_config_files
     echo ""
 
-    setup_catalog
+    create_symlink
     echo ""
 
     verify_installation
