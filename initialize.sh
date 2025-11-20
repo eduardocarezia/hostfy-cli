@@ -74,12 +74,236 @@ show_banner() {
 }
 
 # ========================================
-# Dependency Checks
+# OS Detection
+# ========================================
+detect_os() {
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "macos"
+    elif [[ -f /etc/os-release ]]; then
+        . /etc/os-release
+        case "$ID" in
+            ubuntu|debian)
+                echo "debian"
+                ;;
+            centos|rhel|fedora)
+                echo "rhel"
+                ;;
+            alpine)
+                echo "alpine"
+                ;;
+            *)
+                echo "linux"
+                ;;
+        esac
+    else
+        echo "unknown"
+    fi
+}
+
+# ========================================
+# Dependency Installation Functions
+# ========================================
+install_docker() {
+    local os=$(detect_os)
+
+    log_step "Installing Docker..."
+
+    case "$os" in
+        macos)
+            log_info "Please install Docker Desktop from: https://docs.docker.com/desktop/mac/install/"
+            log_info "After installation, start Docker Desktop and run this script again."
+            exit 1
+            ;;
+        debian)
+            log_info "Installing Docker on Ubuntu/Debian..."
+
+            # Update package index
+            sudo apt-get update
+
+            # Install prerequisites
+            sudo apt-get install -y \
+                ca-certificates \
+                curl \
+                gnupg \
+                lsb-release
+
+            # Add Docker's official GPG key
+            sudo mkdir -p /etc/apt/keyrings
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+            # Set up repository
+            echo \
+                "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+                $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+            # Install Docker Engine
+            sudo apt-get update
+            sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+            # Add user to docker group
+            sudo usermod -aG docker $USER
+
+            # Start Docker
+            sudo systemctl start docker
+            sudo systemctl enable docker
+
+            log_success "Docker installed successfully!"
+            log_warning "Please logout and login again for group changes to take effect"
+            ;;
+        rhel)
+            log_info "Installing Docker on CentOS/RHEL/Fedora..."
+
+            # Remove old versions
+            sudo yum remove -y docker docker-client docker-client-latest docker-common docker-latest docker-latest-logrotate docker-logrotate docker-engine
+
+            # Install prerequisites
+            sudo yum install -y yum-utils
+
+            # Add Docker repository
+            sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+            # Install Docker Engine
+            sudo yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+            # Add user to docker group
+            sudo usermod -aG docker $USER
+
+            # Start Docker
+            sudo systemctl start docker
+            sudo systemctl enable docker
+
+            log_success "Docker installed successfully!"
+            log_warning "Please logout and login again for group changes to take effect"
+            ;;
+        alpine)
+            log_info "Installing Docker on Alpine..."
+            sudo apk add --no-cache docker docker-compose
+            sudo rc-update add docker boot
+            sudo service docker start
+            sudo addgroup $USER docker
+            log_success "Docker installed successfully!"
+            ;;
+        *)
+            log_error "Unsupported operating system"
+            log_info "Please install Docker manually: https://docs.docker.com/get-docker/"
+            exit 1
+            ;;
+    esac
+}
+
+install_docker_compose() {
+    # Check if Docker Compose plugin is already installed
+    if docker compose version &> /dev/null 2>&1; then
+        log_success "Docker Compose plugin is already installed"
+        return 0
+    fi
+
+    local os=$(detect_os)
+
+    log_step "Installing Docker Compose..."
+
+    case "$os" in
+        macos)
+            log_info "Docker Compose is included with Docker Desktop on macOS"
+            ;;
+        debian|rhel)
+            # Docker Compose plugin should be installed with Docker
+            # If not, install standalone version
+            log_info "Installing Docker Compose standalone..."
+
+            local compose_version="v2.23.0"
+            sudo curl -L "https://github.com/docker/compose/releases/download/${compose_version}/docker-compose-$(uname -s)-$(uname -m)" \
+                -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+
+            log_success "Docker Compose installed successfully!"
+            ;;
+        alpine)
+            log_info "Docker Compose should be installed with docker-compose package"
+            ;;
+        *)
+            log_error "Unable to install Docker Compose automatically"
+            log_info "Please install manually: https://docs.docker.com/compose/install/"
+            exit 1
+            ;;
+    esac
+}
+
+install_jq() {
+    local os=$(detect_os)
+
+    log_step "Installing jq..."
+
+    case "$os" in
+        macos)
+            if command -v brew &> /dev/null; then
+                brew install jq
+                log_success "jq installed successfully!"
+            else
+                log_error "Homebrew not found"
+                log_info "Install Homebrew first: https://brew.sh/"
+                log_info "Or install jq manually: https://stedolan.github.io/jq/download/"
+                exit 1
+            fi
+            ;;
+        debian)
+            sudo apt-get update
+            sudo apt-get install -y jq
+            log_success "jq installed successfully!"
+            ;;
+        rhel)
+            sudo yum install -y jq
+            log_success "jq installed successfully!"
+            ;;
+        alpine)
+            sudo apk add --no-cache jq
+            log_success "jq installed successfully!"
+            ;;
+        *)
+            log_error "Unable to install jq automatically"
+            log_info "Please install manually: https://stedolan.github.io/jq/download/"
+            exit 1
+            ;;
+    esac
+}
+
+install_curl() {
+    local os=$(detect_os)
+
+    log_step "Installing curl..."
+
+    case "$os" in
+        macos)
+            log_info "curl is pre-installed on macOS"
+            ;;
+        debian)
+            sudo apt-get update
+            sudo apt-get install -y curl
+            log_success "curl installed successfully!"
+            ;;
+        rhel)
+            sudo yum install -y curl
+            log_success "curl installed successfully!"
+            ;;
+        alpine)
+            sudo apk add --no-cache curl
+            log_success "curl installed successfully!"
+            ;;
+        *)
+            log_error "Unable to install curl automatically"
+            exit 1
+            ;;
+    esac
+}
+
+# ========================================
+# Dependency Checks with Auto-Install
 # ========================================
 check_system_dependencies() {
     log_step "Checking system dependencies..."
 
     local missing_deps=()
+    local os=$(detect_os)
 
     # Check Docker
     if ! command -v docker &> /dev/null; then
@@ -89,9 +313,26 @@ check_system_dependencies() {
 
         # Check Docker daemon
         if ! docker info &> /dev/null; then
-            log_error "Docker daemon is not running"
-            log_info "Please start Docker and run this script again"
-            exit 1
+            log_warning "Docker daemon is not running"
+            log_info "Attempting to start Docker..."
+
+            case "$os" in
+                debian|rhel)
+                    sudo systemctl start docker
+                    sleep 2
+                    if docker info &> /dev/null; then
+                        log_success "Docker daemon started successfully"
+                    else
+                        log_error "Failed to start Docker daemon"
+                        log_info "Please start Docker manually and run this script again"
+                        exit 1
+                    fi
+                    ;;
+                macos)
+                    log_error "Please start Docker Desktop and run this script again"
+                    exit 1
+                    ;;
+            esac
         else
             log_success "Docker daemon is running"
         fi
@@ -99,9 +340,9 @@ check_system_dependencies() {
 
     # Check Docker Compose
     if docker compose version &> /dev/null 2>&1; then
-        log_success "Docker Compose is installed (v2)"
+        log_success "Docker Compose is installed (plugin)"
     elif command -v docker-compose &> /dev/null; then
-        log_success "Docker Compose is installed (v1)"
+        log_success "Docker Compose is installed (standalone)"
     else
         missing_deps+=("docker-compose")
     fi
@@ -120,37 +361,75 @@ check_system_dependencies() {
         log_success "curl is installed"
     fi
 
-    # Report missing dependencies
+    # Auto-install missing dependencies
     if [[ ${#missing_deps[@]} -gt 0 ]]; then
         echo ""
-        log_error "Missing required dependencies: ${missing_deps[*]}"
+        log_warning "Missing dependencies: ${missing_deps[*]}"
         echo ""
-        log_info "Please install the missing dependencies:"
+
+        # Ask for permission to install
+        if [[ "$HOSTFY_FORCE" != "true" ]]; then
+            echo "Do you want to install missing dependencies automatically? (y/N)"
+            read -r response
+            if [[ ! "$response" =~ ^[Yy]$ ]]; then
+                echo ""
+                log_error "Installation cancelled by user"
+                log_info "Please install dependencies manually:"
+                for dep in "${missing_deps[@]}"; do
+                    case "$dep" in
+                        docker)
+                            echo "  - Docker: https://docs.docker.com/get-docker/"
+                            ;;
+                        docker-compose)
+                            echo "  - Docker Compose: https://docs.docker.com/compose/install/"
+                            ;;
+                        jq)
+                            echo "  - jq: https://stedolan.github.io/jq/download/"
+                            ;;
+                        curl)
+                            echo "  - curl: https://curl.se/download.html"
+                            ;;
+                    esac
+                done
+                exit 1
+            fi
+        fi
+
+        echo ""
+        log_info "Installing dependencies automatically..."
 
         for dep in "${missing_deps[@]}"; do
             case "$dep" in
                 docker)
-                    echo "  - Docker: https://docs.docker.com/get-docker/"
+                    install_docker
                     ;;
                 docker-compose)
-                    echo "  - Docker Compose: https://docs.docker.com/compose/install/"
+                    install_docker_compose
                     ;;
                 jq)
-                    echo "  - jq: https://stedolan.github.io/jq/download/"
-                    echo "    macOS: brew install jq"
-                    echo "    Ubuntu: sudo apt-get install jq"
+                    install_jq
                     ;;
                 curl)
-                    echo "  - curl: usually pre-installed on most systems"
+                    install_curl
                     ;;
             esac
         done
 
         echo ""
-        exit 1
-    fi
+        log_success "All dependencies installed!"
 
-    log_success "All dependencies are installed"
+        # Check if Docker was installed and needs restart
+        if [[ " ${missing_deps[@]} " =~ " docker " ]]; then
+            log_warning "Docker was just installed. You may need to:"
+            log_info "1. Logout and login again (for group permissions)"
+            log_info "2. Start Docker daemon if not running"
+            log_info "3. Run this script again"
+            echo ""
+            read -p "Press Enter to continue or Ctrl+C to exit..."
+        fi
+    else
+        log_success "All dependencies are installed"
+    fi
 }
 
 # ========================================
