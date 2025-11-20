@@ -3,7 +3,7 @@
 # Hostfy System Bootstrap and Initialization Script
 # This script downloads all necessary files and sets up the Hostfy system
 
-set -euo pipefail
+set -e
 
 # ========================================
 # Configuration
@@ -12,7 +12,15 @@ GITHUB_REPO="eduardocarezia/hostfy-cli"
 GITHUB_BRANCH="main"
 GITHUB_RAW_URL="https://github.com/${GITHUB_REPO}/raw/refs/heads/${GITHUB_BRANCH}"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Force automatic installation without prompts
+HOSTFY_FORCE="${HOSTFY_FORCE:-true}"
+
+# Detect script directory (works when piped from curl)
+if [[ -n "${BASH_SOURCE[0]:-}" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+else
+    SCRIPT_DIR="$(pwd)/commands"
+fi
 COMMANDS_DIR="$SCRIPT_DIR"
 LIB_DIR="$COMMANDS_DIR/lib"
 CATALOG_DIR="$COMMANDS_DIR/catalog"
@@ -365,38 +373,8 @@ check_system_dependencies() {
     if [[ ${#missing_deps[@]} -gt 0 ]]; then
         echo ""
         log_warning "Missing dependencies: ${missing_deps[*]}"
-        echo ""
-
-        # Ask for permission to install
-        if [[ "$HOSTFY_FORCE" != "true" ]]; then
-            echo "Do you want to install missing dependencies automatically? (y/N)"
-            read -r response
-            if [[ ! "$response" =~ ^[Yy]$ ]]; then
-                echo ""
-                log_error "Installation cancelled by user"
-                log_info "Please install dependencies manually:"
-                for dep in "${missing_deps[@]}"; do
-                    case "$dep" in
-                        docker)
-                            echo "  - Docker: https://docs.docker.com/get-docker/"
-                            ;;
-                        docker-compose)
-                            echo "  - Docker Compose: https://docs.docker.com/compose/install/"
-                            ;;
-                        jq)
-                            echo "  - jq: https://stedolan.github.io/jq/download/"
-                            ;;
-                        curl)
-                            echo "  - curl: https://curl.se/download.html"
-                            ;;
-                    esac
-                done
-                exit 1
-            fi
-        fi
-
-        echo ""
         log_info "Installing dependencies automatically..."
+        echo ""
 
         for dep in "${missing_deps[@]}"; do
             case "$dep" in
@@ -420,12 +398,11 @@ check_system_dependencies() {
 
         # Check if Docker was installed and needs restart
         if [[ " ${missing_deps[@]} " =~ " docker " ]]; then
-            log_warning "Docker was just installed. You may need to:"
-            log_info "1. Logout and login again (for group permissions)"
-            log_info "2. Start Docker daemon if not running"
-            log_info "3. Run this script again"
+            log_warning "Docker was just installed."
+            log_info "Note: You may need to logout/login for group permissions to take effect."
+            log_info "Continuing with installation..."
             echo ""
-            read -p "Press Enter to continue or Ctrl+C to exit..."
+            sleep 2
         fi
     else
         log_success "All dependencies are installed"
