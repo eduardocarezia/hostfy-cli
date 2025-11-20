@@ -111,6 +111,60 @@ detect_os() {
 # ========================================
 # Dependency Installation Functions
 # ========================================
+install_node() {
+    local os=$(detect_os)
+
+    log_step "Installing Node.js and npm..."
+
+    case "$os" in
+        macos)
+            if command -v brew &> /dev/null; then
+                brew install node
+                log_success "Node.js installed successfully!"
+            else
+                log_error "Homebrew not found. Please install Node.js manually: https://nodejs.org/"
+                exit 1
+            fi
+            ;;
+        debian)
+            # Check for sudo
+            if command -v sudo &> /dev/null; then
+                SUDO="sudo"
+            else
+                SUDO=""
+            fi
+
+            curl -fsSL https://deb.nodesource.com/setup_lts.x | $SUDO -E bash -
+            $SUDO apt-get install -y nodejs
+            log_success "Node.js installed successfully!"
+            ;;
+        rhel)
+            if command -v sudo &> /dev/null; then
+                SUDO="sudo"
+            else
+                SUDO=""
+            fi
+            curl -fsSL https://rpm.nodesource.com/setup_lts.x | $SUDO bash -
+            $SUDO yum install -y nodejs
+            log_success "Node.js installed successfully!"
+            ;;
+        alpine)
+            if command -v sudo &> /dev/null; then
+                SUDO="sudo"
+            else
+                SUDO=""
+            fi
+            $SUDO apk add --no-cache nodejs npm
+            log_success "Node.js installed successfully!"
+            ;;
+        *)
+            log_error "Unable to install Node.js automatically"
+            log_info "Please install manually: https://nodejs.org/"
+            exit 1
+            ;;
+    esac
+}
+
 install_docker() {
     local os=$(detect_os)
 
@@ -304,42 +358,7 @@ install_curl() {
     esac
 }
 
-install_node() {
-    local os=$(detect_os)
 
-    log_step "Installing Node.js and npm..."
-
-    case "$os" in
-        macos)
-            if command -v brew &> /dev/null; then
-                brew install node
-                log_success "Node.js installed successfully!"
-            else
-                log_error "Homebrew not found. Please install Node.js manually: https://nodejs.org/"
-                exit 1
-            fi
-            ;;
-        debian)
-            curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
-            sudo apt-get install -y nodejs
-            log_success "Node.js installed successfully!"
-            ;;
-        rhel)
-            curl -fsSL https://rpm.nodesource.com/setup_lts.x | sudo bash -
-            sudo yum install -y nodejs
-            log_success "Node.js installed successfully!"
-            ;;
-        alpine)
-            sudo apk add --no-cache nodejs npm
-            log_success "Node.js installed successfully!"
-            ;;
-        *)
-            log_error "Unable to install Node.js automatically"
-            log_info "Please install manually: https://nodejs.org/"
-            exit 1
-            ;;
-    esac
-}
 
 # ========================================
 # Dependency Checks with Auto-Install
