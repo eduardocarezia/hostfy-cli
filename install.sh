@@ -540,6 +540,7 @@ download_hostfy_files() {
         "domain-manager.sh"
         "container-manager.sh"
         "catalog-manager.sh"
+        "api-manager.sh"
     )
 
     local missing_libs=()
@@ -989,7 +990,7 @@ verify_installation() {
     fi
 
     # Check library files
-    local lib_files=("utils.sh" "network-manager.sh" "template-engine.sh" "domain-manager.sh" "container-manager.sh" "catalog-manager.sh")
+    local lib_files=("utils.sh" "network-manager.sh" "template-engine.sh" "domain-manager.sh" "container-manager.sh" "catalog-manager.sh" "api-manager.sh")
     for lib_file in "${lib_files[@]}"; do
         if [[ ! -f "$LIB_DIR/$lib_file" ]]; then
             issues+=("lib/$lib_file not found")
