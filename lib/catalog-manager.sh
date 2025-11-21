@@ -445,11 +445,9 @@ catalog_install() {
 
     log_debug "Port: $port"
 
-    # Determine domain
+    # Determine domain - only use if explicitly specified by user
+    # If no domain is specified, the container will expose its port directly
     local domain="$custom_domain"
-    if [[ -z "$domain" ]]; then
-        domain=$(echo "$info" | jq -r '.traefik.default_domain // empty')
-    fi
 
     # Build install command
     local install_args=(
@@ -457,8 +455,12 @@ catalog_install() {
         "--port" "$port"
     )
 
+    # Only add domain if user explicitly specified one (not using catalog defaults)
     if [[ -n "$domain" && "$domain" != "null" ]]; then
         install_args+=("--domain" "$domain")
+        log_info "🌐 Container will be accessible via Traefik at: https://$domain"
+    else
+        log_info "🔌 Container will expose port $port directly on the host machine"
     fi
 
     for env_var in "${env_vars[@]}"; do
@@ -473,6 +475,8 @@ catalog_install() {
 
         if [[ -n "$domain" && "$domain" != "null" ]]; then
             log_info "🔗 Access at: https://$domain"
+        else
+            log_info "🔗 Access at: http://<your-server-ip>:$port"
         fi
 
         return 0

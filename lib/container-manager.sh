@@ -142,7 +142,9 @@ container_install() {
     log_success "Container '$container_name' installed successfully"
 
     if [[ -n "$domain" ]]; then
-        log_info "Access at: https://$domain"
+        log_info "🌐 Access via Traefik at: https://$domain"
+    else
+        log_info "🔌 Access directly at: http://<your-server-ip>:$port"
     fi
 
     return 0

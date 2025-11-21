@@ -783,7 +783,7 @@ start_traefik() {
 
         if docker ps --format '{{.Names}}' | grep -q "^traefik$"; then
             log_success "Traefik is running"
-            log_info "Dashboard available at: http://traefik.localhost:8080"
+            log_info "Dashboard available at: http://<your-ip>:4000"
         else
             log_warning "Traefik container exists but may not be running properly"
         fi
@@ -917,6 +917,9 @@ services:
     restart: unless-stopped
     networks:
       - hostfy-network
+    {{PORTS}}
+    {{ENVIRONMENT_VARS}}
+    {{VOLUMES}}
     labels:
       - "hostfy.managed=true"
       - "hostfy.type=custom"
@@ -954,7 +957,7 @@ setup_config_files() {
   "traefik": {
     "enabled": true,
     "version": "$TRAEFIK_VERSION",
-    "dashboard_port": 8080,
+    "dashboard_port": 4000,
     "http_port": 80,
     "https_port": 443
   },
@@ -1093,7 +1096,7 @@ show_completion() {
     echo "  - evolution-api  WhatsApp Multi-Device API"
     echo "  - chatwoot       Customer engagement platform"
     echo ""
-    echo "Traefik Dashboard: http://traefik.localhost:8080"
+    echo "Traefik Dashboard: http://<your-server-ip>:4000"
     echo ""
     echo "For help:          hostfy --help"
     echo "Documentation:     https://github.com/${GITHUB_REPO}"

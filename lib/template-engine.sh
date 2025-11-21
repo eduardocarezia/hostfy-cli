@@ -219,10 +219,13 @@ template_generate_custom() {
     local output_file="$CONTAINERS_DIR/${container_name}.yml"
     local service_name=$(slugify "$container_name")
 
-    # Parse ports
+    # Parse ports - only expose to host if NOT using Traefik (no domain specified)
+    # When using Traefik, it connects to containers via internal Docker network
     local ports_section=""
-    if [[ -n "$port" ]]; then
+    if [[ -n "$port" && -z "$traefik_labels" ]]; then
+        # No Traefik = expose port directly to host machine
         ports_section="ports:\n      - \"$port:$port\""
+        log_debug "Exposing port $port directly to host (no Traefik routing)"
     fi
 
     # Parse environment variables
