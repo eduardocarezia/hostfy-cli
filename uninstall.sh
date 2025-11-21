@@ -27,7 +27,7 @@ echo ""
 log_warning "This script will remove Hostfy and all its components."
 log_warning "Running containers will be stopped and removed."
 echo ""
-read -p "Are you sure you want to continue? (y/N) " -n 1 -r
+read -p "Are you sure you want to continue? (y/N) " -n 1 -r REPLY </dev/tty
 echo ""
 
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -95,7 +95,7 @@ fi
 echo ""
 log_warning "Do you want to delete all Hostfy files and data?"
 log_warning "This includes configuration, logs, and database volumes in $HOSTFY_ROOT"
-read -p "Delete files? (y/N) " -n 1 -r
+read -p "Delete files? (y/N) " -n 1 -r REPLY </dev/tty
 echo ""
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     log_info "Removing files..."
