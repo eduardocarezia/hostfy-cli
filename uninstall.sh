@@ -20,6 +20,12 @@ log_success() { echo -e "${GREEN}✅ $1${NC}"; }
 log_warning() { echo -e "${YELLOW}⚠  $1${NC}"; }
 log_error() { echo -e "${RED}❌ $1${NC}"; }
 
+# Open /dev/tty for interactive input (required for curl | bash)
+exec 3</dev/tty || {
+    log_error "Cannot open terminal for input. Run directly: bash <(curl -fsSL URL)"
+    exit 1
+}
+
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "   🗑️  Hostfy Uninstaller"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -27,11 +33,13 @@ echo ""
 log_warning "This script will remove Hostfy and all its components."
 log_warning "Running containers will be stopped and removed."
 echo ""
-read -p "Are you sure you want to continue? (y/N) " -n 1 -r REPLY </dev/tty
+printf "Are you sure you want to continue? (y/N) "
+read -n 1 -r REPLY <&3
 echo ""
 
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     log_info "Uninstall cancelled."
+    exec 3<&-
     exit 0
 fi
 
@@ -95,7 +103,8 @@ fi
 echo ""
 log_warning "Do you want to delete all Hostfy files and data?"
 log_warning "This includes configuration, logs, and database volumes in $HOSTFY_ROOT"
-read -p "Delete files? (y/N) " -n 1 -r REPLY </dev/tty
+printf "Delete files? (y/N) "
+read -n 1 -r REPLY <&3
 echo ""
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     log_info "Removing files..."
@@ -109,6 +118,9 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
 else
     log_info "Files kept at $HOSTFY_ROOT"
 fi
+
+# Close file descriptor
+exec 3<&-
 
 echo ""
 log_success "Uninstallation complete."
