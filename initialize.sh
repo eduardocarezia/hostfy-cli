@@ -1119,6 +1119,9 @@ main() {
     download_hostfy_files
     echo ""
 
+    download_api_files
+    echo ""
+
     setup_network
     echo ""
 
