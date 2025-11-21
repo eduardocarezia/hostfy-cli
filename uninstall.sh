@@ -2,14 +2,7 @@
 # uninstall.sh
 # Script to uninstall Hostfy and remove all related components
 
-# Directories
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HOSTFY_ROOT="$(dirname "$SCRIPT_DIR")"
-DOCKER_DIR="$HOSTFY_ROOT/docker"
-CONFIG_DIR="$HOSTFY_ROOT/config"
-LOGS_DIR="$HOSTFY_ROOT/logs"
-
-# Colors
+# Colors (define first for logging)
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -20,11 +13,88 @@ log_success() { echo -e "${GREEN}✅ $1${NC}"; }
 log_warning() { echo -e "${YELLOW}⚠  $1${NC}"; }
 log_error() { echo -e "${RED}❌ $1${NC}"; }
 
+# Detect HOSTFY_ROOT - handles both local and curl|bash execution
+detect_hostfy_root() {
+    # Method 1: Try BASH_SOURCE (works for local execution)
+    if [[ -n "${BASH_SOURCE[0]}" && "${BASH_SOURCE[0]}" != "bash" ]]; then
+        local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+        local potential_root="$(dirname "$script_dir" 2>/dev/null)"
+        if [[ -d "$potential_root/commands" && -d "$potential_root/docker" ]]; then
+            echo "$potential_root"
+            return 0
+        fi
+    fi
+
+    # Method 2: Follow the hostfy symlink
+    if [[ -L "/usr/local/bin/hostfy" ]]; then
+        local link_target="$(readlink /usr/local/bin/hostfy)"
+        local commands_dir="$(dirname "$link_target")"
+        local potential_root="$(dirname "$commands_dir")"
+        if [[ -d "$potential_root/commands" ]]; then
+            echo "$potential_root"
+            return 0
+        fi
+    fi
+
+    # Method 3: Check common installation paths
+    local common_paths=(
+        "$HOME/hostfy"
+        "$HOME/.hostfy"
+        "/opt/hostfy"
+        "/usr/local/hostfy"
+        "$HOME/Applications/Apps/hostfyapp"
+    )
+
+    for path in "${common_paths[@]}"; do
+        if [[ -d "$path/commands" ]]; then
+            echo "$path"
+            return 0
+        fi
+    done
+
+    # Not found
+    return 1
+}
+
+# Detect installation path
+HOSTFY_ROOT="$(detect_hostfy_root)"
+
+if [[ -z "$HOSTFY_ROOT" || "$HOSTFY_ROOT" == "/" ]]; then
+    log_warning "Could not auto-detect Hostfy installation path."
+    log_info "Please enter the Hostfy installation directory:"
+    # Will read from tty after exec 3</dev/tty
+    HOSTFY_ROOT=""
+fi
+
+DOCKER_DIR="$HOSTFY_ROOT/docker"
+CONFIG_DIR="$HOSTFY_ROOT/config"
+LOGS_DIR="$HOSTFY_ROOT/logs"
+SCRIPT_DIR="$HOSTFY_ROOT/commands"
+
 # Open /dev/tty for interactive input (required for curl | bash)
 exec 3</dev/tty || {
     log_error "Cannot open terminal for input. Run directly: bash <(curl -fsSL URL)"
     exit 1
 }
+
+# If HOSTFY_ROOT was not detected, ask the user
+if [[ -z "$HOSTFY_ROOT" ]]; then
+    printf "Enter path: "
+    read -r HOSTFY_ROOT <&3
+
+    if [[ ! -d "$HOSTFY_ROOT" ]]; then
+        log_error "Directory does not exist: $HOSTFY_ROOT"
+        exec 3<&-
+        exit 1
+    fi
+
+    DOCKER_DIR="$HOSTFY_ROOT/docker"
+    CONFIG_DIR="$HOSTFY_ROOT/config"
+    LOGS_DIR="$HOSTFY_ROOT/logs"
+    SCRIPT_DIR="$HOSTFY_ROOT/commands"
+fi
+
+log_info "Hostfy installation found at: $HOSTFY_ROOT"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "   🗑️  Hostfy Uninstaller"
