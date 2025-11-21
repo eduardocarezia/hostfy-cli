@@ -178,12 +178,30 @@ read -n 1 -r REPLY <&3
 echo ""
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     log_info "Removing files..."
-    # Be careful not to delete system root if variables are empty
-    if [[ -n "$HOSTFY_ROOT" && "$HOSTFY_ROOT" != "/" ]]; then
+
+    # Extended safety checks - never delete critical system directories
+    local dangerous_paths=("/" "/root" "/home" "/usr" "/var" "/etc" "/bin" "/sbin" "/opt" "/tmp")
+    local is_dangerous=false
+
+    for dangerous in "${dangerous_paths[@]}"; do
+        if [[ "$HOSTFY_ROOT" == "$dangerous" ]]; then
+            is_dangerous=true
+            break
+        fi
+    done
+
+    if [[ "$is_dangerous" == "true" ]]; then
+        log_error "Safety check failed: Cannot delete system directory '$HOSTFY_ROOT'"
+        log_info "Please manually remove Hostfy files from subdirectories:"
+        log_info "  rm -rf $HOSTFY_ROOT/commands"
+        log_info "  rm -rf $HOSTFY_ROOT/docker"
+        log_info "  rm -rf $HOSTFY_ROOT/config"
+        log_info "  rm -rf $HOSTFY_ROOT/logs"
+    elif [[ -n "$HOSTFY_ROOT" ]]; then
         rm -rf "$HOSTFY_ROOT"
         log_success "Files removed"
     else
-        log_error "Safety check failed: HOSTFY_ROOT is empty or root."
+        log_error "Safety check failed: HOSTFY_ROOT is empty."
     fi
 else
     log_info "Files kept at $HOSTFY_ROOT"

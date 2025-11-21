@@ -680,6 +680,8 @@ entryPoints:
           scheme: https
   websecure:
     address: ":443"
+  traefik:
+    address: ":8080"
 
 providers:
   docker:
@@ -723,7 +725,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "8080:8080"
+      - "4000:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik.yml:/traefik.yml:ro
@@ -732,9 +734,9 @@ services:
       - ./logs:/var/log/traefik
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.dashboard.rule=Host(\`traefik.localhost\`)"
+      - "traefik.http.routers.dashboard.rule=PathPrefix(\`/\`)"
       - "traefik.http.routers.dashboard.service=api@internal"
-      - "traefik.http.routers.dashboard.entrypoints=web"
+      - "traefik.http.routers.dashboard.entrypoints=traefik"
 
 networks:
   hostfy-network:
