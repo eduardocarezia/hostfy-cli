@@ -28,6 +28,7 @@ log_warning "This script will remove Hostfy and all its components."
 log_warning "Running containers will be stopped and removed."
 echo ""
 read -p "Are you sure you want to continue? (y/N) " -n 1 -r
+echo ""
 
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     log_info "Uninstall cancelled."
