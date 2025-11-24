@@ -333,3 +333,25 @@ func (c *Client) RemoveVolumesByPrefix(prefix string) error {
 	}
 	return nil
 }
+
+// ListContainersByLabel lista containers que possuem uma label específica
+func (c *Client) ListContainersByLabel(key, value string) ([]string, error) {
+	filterArgs := filters.NewArgs()
+	filterArgs.Add("label", fmt.Sprintf("%s=%s", key, value))
+
+	containers, err := c.cli.ContainerList(c.ctx, container.ListOptions{
+		All:     true,
+		Filters: filterArgs,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var names []string
+	for _, cont := range containers {
+		if len(cont.Names) > 0 {
+			names = append(names, cont.Names[0])
+		}
+	}
+	return names, nil
+}

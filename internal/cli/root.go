@@ -53,4 +53,6 @@ func init() {
 	rootCmd.AddCommand(uninstallCmd)
 	rootCmd.AddCommand(upgradeCmd)
 	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(dbCmd)
+	rootCmd.AddCommand(cleanupCmd)
 }
