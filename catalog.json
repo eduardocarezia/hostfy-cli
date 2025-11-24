@@ -67,6 +67,7 @@
         "N8N_ENCRYPTION_KEY": "{{GENERATE_SECRET_32}}",
         "N8N_PROTOCOL": "https",
         "N8N_TRUST_PROXY": "true",
+        "N8N_PROXY_HOPS": "1",
         "GENERIC_TIMEZONE": "America/Sao_Paulo",
         "N8N_WEBHOOK_DOMAIN": "{{APP_DOMAIN}}"
       },
@@ -93,7 +94,7 @@
           "env": {
             "N8N_DISABLE_UI": "true",
             "WEBHOOK_URL": "https://{{N8N_WEBHOOK_DOMAIN}}",
-            "BASE_URL":"https://{{N8N_WEBHOOK_DOMAIN}}"
+            "BASE_URL": "https://{{N8N_WEBHOOK_DOMAIN}}"
           },
           "volumes": [
             "{{APP_NAME}}_data:/home/node/.n8n"
