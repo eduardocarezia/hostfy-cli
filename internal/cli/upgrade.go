@@ -5,7 +5,8 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"runtime"
+	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/eduardocarezia/hostfy-cli/internal/ui"
@@ -15,7 +16,7 @@ import (
 var upgradeCmd = &cobra.Command{
 	Use:   "upgrade",
 	Short: "Atualiza o hostfy CLI para a versão mais recente",
-	Long:  `Baixa e instala a versão mais recente do hostfy CLI.`,
+	Long:  `Baixa o código fonte e recompila o hostfy CLI.`,
 	RunE:  runUpgrade,
 }
 
@@ -24,9 +25,8 @@ var (
 )
 
 const (
-	// URL base para download dos binários
-	downloadBaseURL = "https://github.com/eduardocarezia/hostfy-cli/releases/latest/download"
-	versionURL      = "https://raw.githubusercontent.com/eduardocarezia/hostfy-cli/main/VERSION"
+	githubRepo = "eduardocarezia/hostfy-cli"
+	versionURL = "https://raw.githubusercontent.com/eduardocarezia/hostfy-cli/main/VERSION"
 )
 
 func init() {
@@ -34,7 +34,7 @@ func init() {
 }
 
 func runUpgrade(cmd *cobra.Command, args []string) error {
-	progress := ui.NewProgress(4)
+	progress := ui.NewProgress(5)
 
 	// 1. Verificar versão atual
 	progress.Step("Verificando versão atual...")
@@ -48,8 +48,7 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 	progress.Step("Buscando última versão...")
 	latestVersion, err := getLatestVersion()
 	if err != nil {
-		// Se não conseguir verificar versão, tenta baixar direto
-		progress.SubStep("Não foi possível verificar versão, tentando download...")
+		progress.SubStep("Não foi possível verificar versão remota, continuando...")
 		latestVersion = "latest"
 	} else {
 		latestVersion = strings.TrimSpace(latestVersion)
@@ -62,20 +61,54 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// 3. Baixar nova versão
-	progress.Step("Baixando nova versão...")
-
-	downloadURL := fmt.Sprintf("%s/%s", downloadBaseURL, getAssetName())
-	progress.SubStep(fmt.Sprintf("Baixando de: %s", downloadURL))
-
-	tmpFile, err := downloadFile(downloadURL)
+	// 3. Verificar se Go está instalado
+	progress.Step("Verificando Go...")
+	goPath, err := findGo()
 	if err != nil {
-		ui.Error("Erro ao baixar: " + err.Error())
+		ui.Error("Go não encontrado. Instale Go ou use o script de instalação:")
+		fmt.Println("  curl -fsSL https://raw.githubusercontent.com/eduardocarezia/hostfy-cli/main/scripts/install.sh | sudo bash")
 		return err
 	}
-	defer os.Remove(tmpFile)
+	progress.SubStep(fmt.Sprintf("Go encontrado: %s", goPath))
 
-	// 4. Instalar
+	// 4. Clonar e compilar
+	progress.Step("Baixando e compilando...")
+
+	tmpDir, err := os.MkdirTemp("", "hostfy-upgrade-*")
+	if err != nil {
+		ui.Error("Erro ao criar diretório temporário: " + err.Error())
+		return err
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Clone
+	progress.SubStep("Clonando repositório...")
+	cloneCmd := exec.Command("git", "clone", "--depth", "1", fmt.Sprintf("https://github.com/%s.git", githubRepo), tmpDir)
+	if output, err := cloneCmd.CombinedOutput(); err != nil {
+		ui.Error("Erro ao clonar: " + string(output))
+		return err
+	}
+
+	// Go mod tidy
+	progress.SubStep("Resolvendo dependências...")
+	tidyCmd := exec.Command(goPath, "mod", "tidy")
+	tidyCmd.Dir = tmpDir
+	if output, err := tidyCmd.CombinedOutput(); err != nil {
+		ui.Error("Erro ao resolver dependências: " + string(output))
+		return err
+	}
+
+	// Build
+	progress.SubStep("Compilando...")
+	newBinary := filepath.Join(tmpDir, "hostfy-new")
+	buildCmd := exec.Command(goPath, "build", "-ldflags", "-s -w", "-o", newBinary, "./cmd/hostfy")
+	buildCmd.Dir = tmpDir
+	if output, err := buildCmd.CombinedOutput(); err != nil {
+		ui.Error("Erro ao compilar: " + string(output))
+		return err
+	}
+
+	// 5. Instalar
 	progress.Step("Instalando...")
 
 	execPath, err := os.Executable()
@@ -92,7 +125,7 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 	}
 
 	// Copiar novo binário
-	if err := copyFile(tmpFile, execPath); err != nil {
+	if err := copyFile(newBinary, execPath); err != nil {
 		os.Rename(backupPath, execPath)
 		ui.Error("Erro ao instalar: " + err.Error())
 		return err
@@ -135,59 +168,19 @@ func getLatestVersion() (string, error) {
 	return string(body), nil
 }
 
-func getAssetName() string {
-	osName := runtime.GOOS
-	arch := runtime.GOARCH
-
-	return fmt.Sprintf("hostfy-%s-%s", osName, arch)
-}
-
-func downloadFile(url string) (string, error) {
-	resp, err := http.Get(url)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	// Verificar se o download foi bem sucedido
-	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("download falhou: status %d (verifique se existe um release no GitHub)", resp.StatusCode)
+func findGo() (string, error) {
+	// Tentar encontrar go no PATH
+	if path, err := exec.LookPath("go"); err == nil {
+		return path, nil
 	}
 
-	// Verificar content-type (não deve ser HTML)
-	contentType := resp.Header.Get("Content-Type")
-	if strings.Contains(contentType, "text/html") {
-		return "", fmt.Errorf("download retornou HTML ao invés de binário (release não encontrado)")
+	// Tentar caminho padrão do install.sh
+	defaultPath := "/usr/local/go/bin/go"
+	if _, err := os.Stat(defaultPath); err == nil {
+		return defaultPath, nil
 	}
 
-	tmpFile, err := os.CreateTemp("", "hostfy-*")
-	if err != nil {
-		return "", err
-	}
-	defer tmpFile.Close()
-
-	_, err = io.Copy(tmpFile, resp.Body)
-	if err != nil {
-		os.Remove(tmpFile.Name())
-		return "", err
-	}
-
-	// Verificar se o arquivo baixado é um binário válido (não HTML)
-	tmpFile.Seek(0, 0)
-	header := make([]byte, 4)
-	tmpFile.Read(header)
-
-	// Verificar magic bytes: ELF (Linux) ou Mach-O (macOS)
-	isELF := header[0] == 0x7f && header[1] == 'E' && header[2] == 'L' && header[3] == 'F'
-	isMachO := (header[0] == 0xfe && header[1] == 0xed && header[2] == 0xfa) || // 32-bit
-		(header[0] == 0xcf && header[1] == 0xfa && header[2] == 0xed) // 64-bit
-
-	if !isELF && !isMachO {
-		os.Remove(tmpFile.Name())
-		return "", fmt.Errorf("arquivo baixado não é um binário válido (pode ser página de erro)")
-	}
-
-	return tmpFile.Name(), nil
+	return "", fmt.Errorf("go não encontrado")
 }
 
 func copyFile(src, dst string) error {
