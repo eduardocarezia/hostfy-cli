@@ -407,7 +407,7 @@ func installSingle(app *catalog.App, appID, stackName string) error {
 }
 
 // ensureDependencies verifica e instala dependências (postgres, redis)
-func ensureDependencies(deps []string, dockerClient *docker.Client, secrets *storage.SystemSecrets, progress *ui.Progress) error {
+func ensureDependencies(deps []string, dockerClient *docker.Client, secrets *storage.Secrets, progress *ui.Progress) error {
 	for _, dep := range deps {
 		switch dep {
 		case "postgres":
