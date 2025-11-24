@@ -68,7 +68,7 @@
         "N8N_PROTOCOL": "https",
         "N8N_TRUST_PROXY": "true",
         "GENERIC_TIMEZONE": "America/Sao_Paulo",
-        "N8N_WEBHOOK_DOMAIN" : "{{N8N_WEBHOOK_DOMAIN}}"
+        "N8N_WEBHOOK_DOMAIN": "webhooks-{{APP_DOMAIN}}"
       },
       "containers": [
         {

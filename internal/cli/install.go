@@ -183,7 +183,8 @@ func installStack(app *catalog.App, appID, stackName string) error {
 		}
 		resolvedContainerEnv := tmplCtx.ResolveEnv(container.Env)
 		for k, v := range resolvedContainerEnv {
-			containerEnv[k] = v
+			// Resolver referências a variáveis do shared_env (ex: {{N8N_WEBHOOK_DOMAIN}})
+			containerEnv[k] = resolveEnvReferences(v, resolvedSharedEnv)
 		}
 
 		// Resolver user_env do container
