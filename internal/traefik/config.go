@@ -48,7 +48,9 @@ func (m *Manager) Start() error {
 	cfg := &docker.ContainerConfig{
 		Name:  ContainerName,
 		Image: Image,
-		Env:   map[string]string{},
+		Env: map[string]string{
+			"DOCKER_API_VERSION": "1.44",
+		},
 		Volumes: []string{
 			"/var/run/docker.sock:/var/run/docker.sock:ro",
 			"hostfy_traefik_certs:/letsencrypt",
