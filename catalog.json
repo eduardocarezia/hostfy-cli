@@ -92,7 +92,8 @@
           "command": "webhook",
           "env": {
             "N8N_DISABLE_UI": "true",
-            "WEBHOOK_URL": "https://{{N8N_WEBHOOK_DOMAIN}}"
+            "WEBHOOK_URL": "https://{{N8N_WEBHOOK_DOMAIN}}",
+            "BASE_URL":"https://{{N8N_WEBHOOK_DOMAIN}}"
           },
           "volumes": [
             "{{APP_NAME}}_data:/home/node/.n8n"
