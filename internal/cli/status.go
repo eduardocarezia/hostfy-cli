@@ -41,10 +41,19 @@ type ServiceStatus struct {
 }
 
 type AppStatus struct {
+	Name       string            `json:"name"`
+	Domain     string            `json:"domain"`
+	Status     string            `json:"status"`
+	Image      string            `json:"image"`
+	IsStack    bool              `json:"is_stack,omitempty"`
+	Containers []ContainerStatus `json:"containers,omitempty"`
+}
+
+type ContainerStatus struct {
 	Name   string `json:"name"`
-	Domain string `json:"domain"`
 	Status string `json:"status"`
-	Image  string `json:"image"`
+	Domain string `json:"domain,omitempty"`
+	IsMain bool   `json:"is_main,omitempty"`
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
@@ -115,17 +124,56 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	// Apps status
 	apps, _ := storage.ListApps()
 	for _, app := range apps {
-		running, _ := dockerClient.ContainerRunning(app.Name)
-		appStatus := "stopped"
-		if running {
-			appStatus = "running"
+		appStatusEntry := AppStatus{
+			Name:    app.Name,
+			Domain:  app.Domain,
+			IsStack: app.IsStack,
 		}
-		status.Apps = append(status.Apps, AppStatus{
-			Name:   app.Name,
-			Domain: app.Domain,
-			Status: appStatus,
-			Image:  app.Image,
-		})
+
+		if app.IsStack && len(app.Containers) > 0 {
+			// Stack com múltiplos containers
+			allRunning := true
+			anyRunning := false
+			for _, c := range app.Containers {
+				containerName := fmt.Sprintf("%s-%s", app.Name, c.Name)
+				running, _ := dockerClient.ContainerRunning(containerName)
+				cStatus := "stopped"
+				if running {
+					cStatus = "running"
+					anyRunning = true
+				} else {
+					allRunning = false
+				}
+				appStatusEntry.Containers = append(appStatusEntry.Containers, ContainerStatus{
+					Name:   c.Name,
+					Status: cStatus,
+					Domain: c.Domain,
+					IsMain: c.IsMain,
+				})
+				// Usar imagem do container principal para o status geral
+				if c.IsMain {
+					appStatusEntry.Image = c.Image
+				}
+			}
+			// Status geral da stack
+			if allRunning {
+				appStatusEntry.Status = "running"
+			} else if anyRunning {
+				appStatusEntry.Status = "partial"
+			} else {
+				appStatusEntry.Status = "stopped"
+			}
+		} else {
+			// App single-container (modo legado)
+			running, _ := dockerClient.ContainerRunning(app.Name)
+			appStatusEntry.Status = "stopped"
+			if running {
+				appStatusEntry.Status = "running"
+			}
+			appStatusEntry.Image = app.Image
+		}
+
+		status.Apps = append(status.Apps, appStatusEntry)
 	}
 
 	// Output JSON

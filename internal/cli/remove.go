@@ -57,14 +57,33 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	}
 	defer dockerClient.Close()
 
-	// 2. Parar container
-	progress.Step("Parando container...")
-	dockerClient.StopContainer(appName)
+	// 2. Parar containers
+	progress.Step("Parando containers...")
+	if appConfig.IsStack && len(appConfig.Containers) > 0 {
+		// Stack: para todos os containers
+		for _, c := range appConfig.Containers {
+			containerName := fmt.Sprintf("%s-%s", appName, c.Name)
+			dockerClient.StopContainer(containerName)
+			progress.SubStep(fmt.Sprintf("%s parado", c.Name))
+		}
+	} else {
+		dockerClient.StopContainer(appName)
+	}
 
-	// 3. Remover container
-	progress.Step("Removendo container...")
-	if err := dockerClient.RemoveContainer(appName, true); err != nil {
-		ui.Warning("Container pode já ter sido removido")
+	// 3. Remover containers
+	progress.Step("Removendo containers...")
+	if appConfig.IsStack && len(appConfig.Containers) > 0 {
+		// Stack: remove todos os containers
+		for _, c := range appConfig.Containers {
+			containerName := fmt.Sprintf("%s-%s", appName, c.Name)
+			if err := dockerClient.RemoveContainer(containerName, true); err != nil {
+				ui.Warning(fmt.Sprintf("Container %s pode já ter sido removido", c.Name))
+			}
+		}
+	} else {
+		if err := dockerClient.RemoveContainer(appName, true); err != nil {
+			ui.Warning("Container pode já ter sido removido")
+		}
 	}
 
 	if removeKeepData {

@@ -39,11 +39,30 @@ func runStart(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("app não encontrado")
 	}
 
+	// Carregar configuração
+	appConfig, err := storage.LoadApp(target)
+	if err != nil {
+		ui.Error("Erro ao carregar configuração: " + err.Error())
+		return err
+	}
+
 	ui.Info(fmt.Sprintf("Iniciando %s...", target))
 
-	if err := dockerClient.StartContainer(target); err != nil {
-		ui.Error("Erro ao iniciar: " + err.Error())
-		return err
+	// Se for Stack, inicia todos os containers
+	if appConfig.IsStack && len(appConfig.Containers) > 0 {
+		for _, c := range appConfig.Containers {
+			containerName := fmt.Sprintf("%s-%s", target, c.Name)
+			if err := dockerClient.StartContainer(containerName); err != nil {
+				ui.Warning(fmt.Sprintf("Erro ao iniciar %s: %s", c.Name, err.Error()))
+			} else {
+				ui.Success(fmt.Sprintf("  %s iniciado", c.Name))
+			}
+		}
+	} else {
+		if err := dockerClient.StartContainer(target); err != nil {
+			ui.Error("Erro ao iniciar: " + err.Error())
+			return err
+		}
 	}
 
 	ui.Success(fmt.Sprintf("%s iniciado!", target))
@@ -79,10 +98,21 @@ func startAll(dockerClient *docker.Client) error {
 	progress.Step("Iniciando apps...")
 	apps, _ := storage.ListApps()
 	for _, app := range apps {
-		if err := dockerClient.StartContainer(app.Name); err != nil {
-			ui.Warning(fmt.Sprintf("Erro ao iniciar %s: %s", app.Name, err.Error()))
+		if app.IsStack && len(app.Containers) > 0 {
+			// Stack com múltiplos containers
+			for _, c := range app.Containers {
+				containerName := fmt.Sprintf("%s-%s", app.Name, c.Name)
+				if err := dockerClient.StartContainer(containerName); err != nil {
+					ui.Warning(fmt.Sprintf("Erro ao iniciar %s-%s: %s", app.Name, c.Name, err.Error()))
+				}
+			}
+			progress.SubStep(fmt.Sprintf("%s iniciado (%d containers)", app.Name, len(app.Containers)))
 		} else {
-			progress.SubStep(fmt.Sprintf("%s iniciado", app.Name))
+			if err := dockerClient.StartContainer(app.Name); err != nil {
+				ui.Warning(fmt.Sprintf("Erro ao iniciar %s: %s", app.Name, err.Error()))
+			} else {
+				progress.SubStep(fmt.Sprintf("%s iniciado", app.Name))
+			}
 		}
 	}
 

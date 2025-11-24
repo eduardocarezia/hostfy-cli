@@ -26,6 +26,13 @@ func runStop(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("app não encontrado")
 	}
 
+	// Carregar configuração
+	appConfig, err := storage.LoadApp(appName)
+	if err != nil {
+		ui.Error("Erro ao carregar configuração: " + err.Error())
+		return err
+	}
+
 	dockerClient, err := docker.NewClient()
 	if err != nil {
 		ui.Error("Erro ao conectar ao Docker: " + err.Error())
@@ -35,9 +42,21 @@ func runStop(cmd *cobra.Command, args []string) error {
 
 	ui.Info(fmt.Sprintf("Parando %s...", appName))
 
-	if err := dockerClient.StopContainer(appName); err != nil {
-		ui.Error("Erro ao parar: " + err.Error())
-		return err
+	// Se for Stack, para todos os containers
+	if appConfig.IsStack && len(appConfig.Containers) > 0 {
+		for _, c := range appConfig.Containers {
+			containerName := fmt.Sprintf("%s-%s", appName, c.Name)
+			if err := dockerClient.StopContainer(containerName); err != nil {
+				ui.Warning(fmt.Sprintf("Erro ao parar %s: %s", c.Name, err.Error()))
+			} else {
+				ui.Success(fmt.Sprintf("  %s parado", c.Name))
+			}
+		}
+	} else {
+		if err := dockerClient.StopContainer(appName); err != nil {
+			ui.Error("Erro ao parar: " + err.Error())
+			return err
+		}
 	}
 
 	ui.Success(fmt.Sprintf("%s parado!", appName))

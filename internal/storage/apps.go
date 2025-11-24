@@ -143,8 +143,17 @@ func BackupAppSecrets(app *AppConfig) error {
 	}
 
 	secrets := make(map[string]string)
+
+	// Buscar em Env (apps single-container)
 	for _, key := range sensitiveKeys {
 		if val, ok := app.Env[key]; ok {
+			secrets[key] = val
+		}
+	}
+
+	// Buscar em SharedEnv (Stacks com múltiplos containers)
+	for _, key := range sensitiveKeys {
+		if val, ok := app.SharedEnv[key]; ok {
 			secrets[key] = val
 		}
 	}

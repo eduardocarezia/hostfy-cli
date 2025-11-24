@@ -37,11 +37,30 @@ func runRestart(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("app não encontrado")
 	}
 
+	// Carregar configuração
+	appConfig, err := storage.LoadApp(target)
+	if err != nil {
+		ui.Error("Erro ao carregar configuração: " + err.Error())
+		return err
+	}
+
 	ui.Info(fmt.Sprintf("Reiniciando %s...", target))
 
-	if err := dockerClient.RestartContainer(target); err != nil {
-		ui.Error("Erro ao reiniciar: " + err.Error())
-		return err
+	// Se for Stack, reinicia todos os containers
+	if appConfig.IsStack && len(appConfig.Containers) > 0 {
+		for _, c := range appConfig.Containers {
+			containerName := fmt.Sprintf("%s-%s", target, c.Name)
+			if err := dockerClient.RestartContainer(containerName); err != nil {
+				ui.Warning(fmt.Sprintf("Erro ao reiniciar %s: %s", c.Name, err.Error()))
+			} else {
+				ui.Success(fmt.Sprintf("  %s reiniciado", c.Name))
+			}
+		}
+	} else {
+		if err := dockerClient.RestartContainer(target); err != nil {
+			ui.Error("Erro ao reiniciar: " + err.Error())
+			return err
+		}
 	}
 
 	ui.Success(fmt.Sprintf("%s reiniciado!", target))
@@ -54,10 +73,21 @@ func restartAll(dockerClient *docker.Client) error {
 	// Reiniciar apps
 	apps, _ := storage.ListApps()
 	for _, app := range apps {
-		if err := dockerClient.RestartContainer(app.Name); err != nil {
-			ui.Warning(fmt.Sprintf("Erro ao reiniciar %s: %s", app.Name, err.Error()))
+		if app.IsStack && len(app.Containers) > 0 {
+			// Stack com múltiplos containers
+			for _, c := range app.Containers {
+				containerName := fmt.Sprintf("%s-%s", app.Name, c.Name)
+				if err := dockerClient.RestartContainer(containerName); err != nil {
+					ui.Warning(fmt.Sprintf("Erro ao reiniciar %s-%s: %s", app.Name, c.Name, err.Error()))
+				}
+			}
+			ui.Success(fmt.Sprintf("%s reiniciado (%d containers)", app.Name, len(app.Containers)))
 		} else {
-			ui.Success(fmt.Sprintf("%s reiniciado", app.Name))
+			if err := dockerClient.RestartContainer(app.Name); err != nil {
+				ui.Warning(fmt.Sprintf("Erro ao reiniciar %s: %s", app.Name, err.Error()))
+			} else {
+				ui.Success(fmt.Sprintf("%s reiniciado", app.Name))
+			}
 		}
 	}
 

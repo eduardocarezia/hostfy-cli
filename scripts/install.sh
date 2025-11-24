@@ -21,7 +21,7 @@ info() { echo -e "${CYAN}[hostfy]${NC} $1"; }
 # Header
 echo ""
 echo -e "${CYAN}╔════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║${NC}      ${BOLD}hostfy${NC} - Self-hosted Made Simple   ${CYAN}║${NC}"
+echo -e "${CYAN}║${NC}     ${BOLD}hostfy${NC} - Self-hosted Made Simple   ${CYAN}║${NC}"
 echo -e "${CYAN}╚════════════════════════════════════════╝${NC}"
 echo ""
 
