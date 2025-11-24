@@ -66,8 +66,10 @@
         "EXECUTIONS_MODE": "queue",
         "N8N_ENCRYPTION_KEY": "{{GENERATE_SECRET_32}}",
         "N8N_PROTOCOL": "https",
+        "N8N_TRUST_PROXY": "true",
         "GENERIC_TIMEZONE": "America/Sao_Paulo",
         "N8N_WORKER_DOMAIN": "webhooks-{{APP_DOMAIN}}",
+        "N8N_EDITOR_BASE_URL": "https://{{APP_DOMAIN}}",
         "WEBHOOK_URL": "https://{{N8N_WORKER_DOMAIN}}"
       },
       "containers": [
