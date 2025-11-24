@@ -37,4 +37,5 @@ func init() {
 	rootCmd.AddCommand(startCmd)
 	rootCmd.AddCommand(stopCmd)
 	rootCmd.AddCommand(restartCmd)
+	rootCmd.AddCommand(uninstallCmd)
 }

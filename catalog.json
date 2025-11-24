@@ -243,6 +243,82 @@
           "default": "admin@example.com"
         }
       ]
+    },
+
+    "chatwoot": {
+      "name": "Chatwoot",
+      "description": "Customer Engagement Platform - Atendimento ao cliente omnichannel",
+      "image": "chatwoot/chatwoot:latest",
+      "port": 3000,
+      "dependencies": ["postgres", "redis"],
+      "env": {
+        "RAILS_ENV": "production",
+        "NODE_ENV": "production",
+        "INSTALLATION_ENV": "docker",
+        "SECRET_KEY_BASE": "{{GENERATE_SECRET_64}}",
+        "FRONTEND_URL": "https://{{APP_DOMAIN}}",
+        "POSTGRES_HOST": "{{SERVICE_postgres_HOST}}",
+        "POSTGRES_PORT": "5432",
+        "POSTGRES_DATABASE": "{{APP_DATABASE}}",
+        "POSTGRES_USERNAME": "{{SERVICE_postgres_USER}}",
+        "POSTGRES_PASSWORD": "{{SERVICE_postgres_PASSWORD}}",
+        "REDIS_URL": "redis://{{SERVICE_redis_HOST}}:6379",
+        "RAILS_LOG_TO_STDOUT": "true",
+        "DEFAULT_LOCALE": "pt_BR",
+        "ENABLE_ACCOUNT_SIGNUP": "false"
+      },
+      "volumes": [
+        "{{APP_NAME}}_storage:/app/storage"
+      ],
+      "user_env": [
+        {
+          "key": "MAILER_SENDER_EMAIL",
+          "prompt": "Email do remetente (para notificações)",
+          "default": "noreply@{{APP_DOMAIN}}"
+        }
+      ],
+      "command": "bundle exec rails s -p 3000 -b 0.0.0.0"
+    },
+
+    "evolution-api": {
+      "name": "Evolution API",
+      "description": "WhatsApp API - Integração WhatsApp para automações e chatbots",
+      "image": "atendai/evolution-api:latest",
+      "port": 8080,
+      "dependencies": ["postgres", "redis"],
+      "env": {
+        "SERVER_URL": "https://{{APP_DOMAIN}}",
+        "SERVER_TYPE": "http",
+        "SERVER_PORT": "8080",
+        "CORS_ORIGIN": "*",
+        "CORS_METHODS": "GET,POST,PUT,DELETE",
+        "CORS_CREDENTIALS": "true",
+        "LOG_LEVEL": "ERROR,WARN,DEBUG,INFO,LOG,VERBOSE,DARK,WEBHOOKS",
+        "DEL_INSTANCE": "false",
+        "DATABASE_ENABLED": "true",
+        "DATABASE_PROVIDER": "postgresql",
+        "DATABASE_CONNECTION_URI": "postgresql://{{SERVICE_postgres_USER}}:{{SERVICE_postgres_PASSWORD}}@{{SERVICE_postgres_HOST}}:5432/{{APP_DATABASE}}?schema=public",
+        "DATABASE_CONNECTION_CLIENT_NAME": "evolution_api",
+        "DATABASE_SAVE_DATA_INSTANCE": "true",
+        "DATABASE_SAVE_DATA_NEW_MESSAGE": "true",
+        "DATABASE_SAVE_MESSAGE_UPDATE": "true",
+        "DATABASE_SAVE_DATA_CONTACTS": "true",
+        "DATABASE_SAVE_DATA_CHATS": "true",
+        "DATABASE_SAVE_DATA_LABELS": "true",
+        "DATABASE_SAVE_DATA_HISTORIC": "true",
+        "CACHE_REDIS_ENABLED": "true",
+        "CACHE_REDIS_URI": "redis://{{SERVICE_redis_HOST}}:6379/0",
+        "CACHE_REDIS_PREFIX_KEY": "evolution",
+        "CACHE_LOCAL_ENABLED": "false",
+        "AUTHENTICATION_TYPE": "apikey",
+        "AUTHENTICATION_API_KEY": "{{GENERATE_SECRET_32}}",
+        "AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES": "true"
+      },
+      "volumes": [
+        "{{APP_NAME}}_instances:/evolution/instances",
+        "{{APP_NAME}}_store:/evolution/store"
+      ],
+      "user_env": []
     }
   }
 }
