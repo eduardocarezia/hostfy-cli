@@ -18,6 +18,9 @@ type AppConfig struct {
 	ContainerID   string            `json:"container_id,omitempty"`
 	Database      string            `json:"database,omitempty"`
 	Env           map[string]string `json:"env"`
+	Volumes       []string          `json:"volumes,omitempty"`
+	Command       string            `json:"command,omitempty"`
+	Port          int               `json:"port,omitempty"`
 }
 
 func NewAppConfig(name, catalogApp, domain, image string) *AppConfig {

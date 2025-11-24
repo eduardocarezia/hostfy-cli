@@ -65,6 +65,14 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	if updateDomain != "" && updateDomain != appConfig.Domain {
 		appConfig.Domain = updateDomain
 		changes = append(changes, fmt.Sprintf("domain: %s → %s", oldDomain, updateDomain))
+
+		// Atualizar variáveis de ambiente que contêm o domínio antigo
+		for key, value := range appConfig.Env {
+			if strings.Contains(value, oldDomain) {
+				newValue := strings.ReplaceAll(value, oldDomain, updateDomain)
+				appConfig.Env[key] = newValue
+			}
+		}
 	}
 
 	// 2. Recriar container com novas configs
@@ -81,24 +89,28 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	dockerClient.StopContainer(appName)
 	dockerClient.RemoveContainer(appName, true)
 
-	// Buscar info do catálogo para port
-	catalogApp, _ := storage.LoadApp(appName)
-	port := 80 // default
-	if catalogApp != nil {
-		// Tentar obter port do catálogo
-		// Por enquanto usar 80 como fallback
+	// Usar port salvo na config do app
+	port := appConfig.Port
+	if port == 0 {
+		port = 80 // fallback
 	}
 
 	// Gerar novos labels
 	labels := traefik.GenerateLabels(appName, appConfig.Domain, port)
 
-	// Recriar container
+	// Recriar container com todas as configs preservadas
 	containerCfg := &docker.ContainerConfig{
 		Name:    appName,
 		Image:   appConfig.Image,
 		Env:     appConfig.Env,
 		Labels:  labels,
+		Volumes: appConfig.Volumes,
 		Restart: "always",
+	}
+
+	// Adicionar command se existir
+	if appConfig.Command != "" {
+		containerCfg.Command = strings.Fields(appConfig.Command)
 	}
 
 	containerID, err := dockerClient.CreateContainer(containerCfg)

@@ -188,6 +188,9 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	appConfig.ContainerID = containerID
 	appConfig.Database = dbName
 	appConfig.Env = resolvedEnv
+	appConfig.Volumes = resolvedVolumes
+	appConfig.Command = app.Command
+	appConfig.Port = app.Port
 
 	if err := storage.SaveApp(appConfig); err != nil {
 		ui.Error("Erro ao salvar configuração: " + err.Error())
