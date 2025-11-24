@@ -4,7 +4,7 @@ set -e
 HOSTFY_VERSION="${HOSTFY_VERSION:-1.0.0}"
 HOSTFY_BIN="/usr/local/bin/hostfy"
 HOSTFY_DIR="/etc/hostfy"
-GITHUB_REPO="${GITHUB_REPO:-hostfy/cli}"
+GITHUB_REPO="${GITHUB_REPO:-eduardocarezia/hostfy-cli}"
 GITHUB_RELEASE="https://github.com/${GITHUB_REPO}/releases/download/v${HOSTFY_VERSION}"
 
 # Cores
@@ -73,28 +73,36 @@ fi
 info "[2/5] Baixando hostfy..."
 DOWNLOAD_URL="${GITHUB_RELEASE}/hostfy-${OS}-${ARCH}"
 
-# Tentar baixar
+# Tentar baixar da release
 if curl -fsSL "${DOWNLOAD_URL}" -o "${HOSTFY_BIN}" 2>/dev/null; then
     chmod +x "${HOSTFY_BIN}"
     log "hostfy baixado ✓"
 else
-    warn "Não foi possível baixar de ${DOWNLOAD_URL}"
-    warn "Tentando build local..."
+    warn "Release não encontrada em ${DOWNLOAD_URL}"
+    log "Instalando via build..."
 
-    # Fallback: verificar se Go está instalado e fazer build
-    if command -v go &> /dev/null; then
-        log "Go encontrado, fazendo build local..."
-        TEMP_DIR=$(mktemp -d)
-        cd "$TEMP_DIR"
-        git clone "https://github.com/${GITHUB_REPO}.git" . 2>/dev/null || error "Falha ao clonar repositório"
-        go build -o "${HOSTFY_BIN}" ./cmd/hostfy
-        chmod +x "${HOSTFY_BIN}"
-        cd /
-        rm -rf "$TEMP_DIR"
-        log "hostfy compilado ✓"
-    else
-        error "Não foi possível instalar hostfy. Verifique a URL ou instale Go para compilar."
+    # Instalar Go se não existir
+    if ! command -v go &> /dev/null; then
+        log "Instalando Go..."
+        GO_VERSION="1.21.5"
+        curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz" -o /tmp/go.tar.gz
+        rm -rf /usr/local/go
+        tar -C /usr/local -xzf /tmp/go.tar.gz
+        rm /tmp/go.tar.gz
+        export PATH=$PATH:/usr/local/go/bin
+        log "Go instalado ✓"
     fi
+
+    # Clonar e compilar
+    log "Compilando hostfy..."
+    TEMP_DIR=$(mktemp -d)
+    cd "$TEMP_DIR"
+    git clone "https://github.com/${GITHUB_REPO}.git" . 2>/dev/null || error "Falha ao clonar repositório"
+    /usr/local/go/bin/go build -ldflags "-s -w" -o "${HOSTFY_BIN}" ./cmd/hostfy
+    chmod +x "${HOSTFY_BIN}"
+    cd /
+    rm -rf "$TEMP_DIR"
+    log "hostfy compilado ✓"
 fi
 
 # 3. Criar diretórios

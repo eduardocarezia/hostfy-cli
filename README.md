@@ -5,7 +5,7 @@ Self-hosted app deployment made simple. Deploy apps com um comando, configure do
 ## Instalação
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hostfy/cli/main/scripts/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/eduardocarezia/hostfy-cli/refs/heads/main/scripts/install.sh | sudo bash
 ```
 
 ## Quick Start
