@@ -36,11 +36,9 @@
   "apps": {
     "n8n": {
       "name": "n8n",
-      "description": "Workflow Automation Tool - Automatize tarefas e integre serviços",
-      "image": "n8nio/n8n:latest",
-      "port": 5678,
+      "description": "Workflow Automation Tool - Stack com Editor + Worker para alta disponibilidade",
       "dependencies": ["postgres", "redis"],
-      "env": {
+      "shared_env": {
         "DB_TYPE": "postgresdb",
         "DB_POSTGRESDB_HOST": "{{SERVICE_postgres_HOST}}",
         "DB_POSTGRESDB_PORT": "5432",
@@ -48,27 +46,43 @@
         "DB_POSTGRESDB_USER": "{{SERVICE_postgres_USER}}",
         "DB_POSTGRESDB_PASSWORD": "{{SERVICE_postgres_PASSWORD}}",
         "QUEUE_BULL_REDIS_HOST": "{{SERVICE_redis_HOST}}",
+        "QUEUE_HEALTH_CHECK_ACTIVE": "true",
+        "EXECUTIONS_MODE": "queue",
         "N8N_ENCRYPTION_KEY": "{{GENERATE_SECRET_32}}",
-        "N8N_HOST": "{{APP_DOMAIN}}",
         "N8N_PROTOCOL": "https",
-        "WEBHOOK_URL": "https://{{APP_DOMAIN}}",
-        "GENERIC_TIMEZONE": "America/Sao_Paulo"
+        "GENERIC_TIMEZONE": "America/Sao_Paulo",
+        "N8N_WORKER_DOMAIN": "webhooks-{{APP_DOMAIN}}",
+        "WEBHOOK_URL": "https://{{N8N_WORKER_DOMAIN}}"
       },
-      "volumes": [
-        "{{APP_NAME}}_data:/home/node/.n8n"
-      ],
-      "user_env": [
+      "containers": [
         {
-          "key": "N8N_BASIC_AUTH_USER",
-          "prompt": "Usuário admin",
-          "default": "admin"
+          "name": "editor",
+          "image": "n8nio/n8n:latest",
+          "port": 5678,
+          "is_main": true,
+          "env": {
+            "N8N_HOST": "{{APP_DOMAIN}}"
+          },
+          "volumes": [
+            "{{APP_NAME}}_data:/home/node/.n8n"
+          ]
         },
         {
-          "key": "N8N_BASIC_AUTH_PASSWORD",
-          "prompt": "Senha admin",
-          "default": "{{GENERATE_SECRET_16}}"
+          "name": "worker",
+          "image": "n8nio/n8n:latest",
+          "port": 5678,
+          "command": "n8n worker",
+          "env": {
+            "N8N_DISABLE_UI": "true"
+          },
+          "traefik": {
+            "routes": [
+              {"subdomain": "{{N8N_WORKER_DOMAIN}}", "port": 5678}
+            ]
+          }
         }
-      ]
+      ],
+      "user_env": []
     },
 
     "uptime-kuma": {
@@ -283,7 +297,7 @@
     "evolution-api": {
       "name": "Evolution API",
       "description": "WhatsApp API - Integração WhatsApp para automações e chatbots",
-      "image": "atendai/evolution-api:latest",
+      "image": "evoapicloud/evolution-api:latest",
       "port": 8080,
       "dependencies": ["postgres", "redis"],
       "env": {

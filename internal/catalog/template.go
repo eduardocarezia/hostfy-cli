@@ -39,15 +39,34 @@ func (tc *TemplateContext) SetPreservedSecrets(secrets map[string]string) {
 
 func (tc *TemplateContext) ResolveEnv(env map[string]string) map[string]string {
 	resolved := make(map[string]string)
+
+	// Primeira passada: resolver variáveis básicas (que não dependem de outras do env)
 	for key, value := range env {
-		// Verifica se há uma secret preservada para esta key
 		if preserved, ok := tc.PreservedSecrets[key]; ok {
 			resolved[key] = preserved
 		} else {
 			resolved[key] = tc.resolveValueForKey(key, value)
 		}
 	}
+
+	// Segunda passada: resolver referências a variáveis do próprio env
+	for key, value := range resolved {
+		resolved[key] = tc.resolveEnvReferences(value, resolved)
+	}
+
 	return resolved
+}
+
+// resolveEnvReferences resolve referências a variáveis do próprio env map
+func (tc *TemplateContext) resolveEnvReferences(value string, env map[string]string) string {
+	re := regexp.MustCompile(`\{\{([^}]+)\}\}`)
+	return re.ReplaceAllStringFunc(value, func(match string) string {
+		key := strings.Trim(match, "{}")
+		if val, ok := env[key]; ok {
+			return val
+		}
+		return match // Mantém o placeholder se não encontrar
+	})
 }
 
 // resolveValueForKey resolve o valor e armazena em cache para keys que geram secrets

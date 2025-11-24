@@ -21,6 +21,24 @@ type AppConfig struct {
 	Volumes       []string          `json:"volumes,omitempty"`
 	Command       string            `json:"command,omitempty"`
 	Port          int               `json:"port,omitempty"`
+
+	// Stack mode - múltiplos containers
+	IsStack    bool                     `json:"is_stack,omitempty"`
+	Containers []ContainerConfig        `json:"containers,omitempty"`
+	SharedEnv  map[string]string        `json:"shared_env,omitempty"`
+}
+
+// ContainerConfig armazena configuração de um container individual numa Stack
+type ContainerConfig struct {
+	Name        string            `json:"name"`
+	ContainerID string            `json:"container_id"`
+	Image       string            `json:"image"`
+	Domain      string            `json:"domain,omitempty"`
+	Port        int               `json:"port,omitempty"`
+	Command     string            `json:"command,omitempty"`
+	Env         map[string]string `json:"env,omitempty"`
+	Volumes     []string          `json:"volumes,omitempty"`
+	IsMain      bool              `json:"is_main,omitempty"`
 }
 
 func NewAppConfig(name, catalogApp, domain, image string) *AppConfig {
