@@ -49,7 +49,7 @@
   "apps": {
     "n8n": {
       "name": "n8n",
-      "description": "Workflow Automation Tool - Stack com Editor + Worker para alta disponibilidade",
+      "description": "Workflow Automation Tool - Stack com Editor + Webhook + Worker para alta disponibilidade",
       "dependencies": [
         "postgres",
         "redis"
@@ -68,9 +68,7 @@
         "N8N_PROTOCOL": "https",
         "N8N_TRUST_PROXY": "true",
         "GENERIC_TIMEZONE": "America/Sao_Paulo",
-        "N8N_WORKER_DOMAIN": "webhooks-{{APP_DOMAIN}}",
-        "N8N_EDITOR_BASE_URL": "https://{{APP_DOMAIN}}",
-        "WEBHOOK_URL": "https://{{N8N_WORKER_DOMAIN}}"
+        "N8N_WEBHOOK_DOMAIN": "webhooks-{{APP_DOMAIN}}"
       },
       "containers": [
         {
@@ -79,19 +77,22 @@
           "port": 5678,
           "is_main": true,
           "env": {
-            "N8N_HOST": "{{APP_DOMAIN}}"
+            "N8N_HOST": "{{APP_DOMAIN}}",
+            "N8N_EDITOR_BASE_URL": "https://{{APP_DOMAIN}}",
+            "WEBHOOK_URL": "https://{{APP_DOMAIN}}"
           },
           "volumes": [
             "{{APP_NAME}}_data:/home/node/.n8n"
           ]
         },
         {
-          "name": "worker",
+          "name": "webhook",
           "image": "n8nio/n8n:latest",
           "port": 5678,
-          "command": "worker",
+          "command": "webhook",
           "env": {
-            "N8N_DISABLE_UI": "true"
+            "N8N_DISABLE_UI": "true",
+            "WEBHOOK_URL": "https://{{N8N_WEBHOOK_DOMAIN}}"
           },
           "volumes": [
             "{{APP_NAME}}_data:/home/node/.n8n"
@@ -99,11 +100,22 @@
           "traefik": {
             "routes": [
               {
-                "subdomain": "{{N8N_WORKER_DOMAIN}}",
+                "subdomain": "{{N8N_WEBHOOK_DOMAIN}}",
                 "port": 5678
               }
             ]
           }
+        },
+        {
+          "name": "worker",
+          "image": "n8nio/n8n:latest",
+          "command": "worker",
+          "env": {
+            "N8N_DISABLE_UI": "true"
+          },
+          "volumes": [
+            "{{APP_NAME}}_data:/home/node/.n8n"
+          ]
         }
       ],
       "user_env": []
