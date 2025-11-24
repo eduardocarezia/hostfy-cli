@@ -6,7 +6,7 @@ BUILD_DIR = build
 MAIN_PATH = ./cmd/hostfy
 
 # Go build flags
-LDFLAGS = -ldflags "-s -w -X main.Version=$(VERSION)"
+LDFLAGS = -ldflags "-s -w -X github.com/eduardocarezia/hostfy-cli/internal/cli.Version=$(VERSION)"
 
 # Default target
 all: build
