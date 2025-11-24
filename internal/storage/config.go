@@ -28,7 +28,7 @@ type TraefikConfig struct {
 func DefaultConfig() *Config {
 	return &Config{
 		Version:    "1.0",
-		CatalogURL: "https://raw.githubusercontent.com/eduardocarezia/hostfy-cli/refs/heads/main/catalog.json",
+		CatalogURL: "https://raw.githubusercontent.com/eduardocarezia/hostfy-cli/main/catalog.json",
 		Network:    "hostfy_network",
 		Traefik: TraefikConfig{
 			Dashboard: false,
