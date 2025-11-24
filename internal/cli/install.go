@@ -120,14 +120,20 @@ func installStack(app *catalog.App, appID, stackName string) error {
 		}
 	}
 
-	// Resolver shared_env uma vez (para compartilhar entre containers)
-	resolvedSharedEnv := tmplCtx.ResolveEnv(app.SharedEnv)
+	// Preparar shared_env com overrides do usuário ANTES de resolver
+	sharedEnvWithOverrides := make(map[string]string)
+	for k, v := range app.SharedEnv {
+		sharedEnvWithOverrides[k] = v
+	}
 
-	// Adicionar envs do usuário (--env flags)
+	// Aplicar --env flags antes da resolução (para que dependências sejam resolvidas corretamente)
 	userEnvOverrides := parseUserEnvFlags(installEnv)
 	for k, v := range userEnvOverrides {
-		resolvedSharedEnv[k] = v
+		sharedEnvWithOverrides[k] = v
 	}
+
+	// Resolver shared_env com overrides já aplicados
+	resolvedSharedEnv := tmplCtx.ResolveEnv(sharedEnvWithOverrides)
 
 	// Resolver user_env do app (nível stack)
 	userEnvResolved := make(map[string]string)
