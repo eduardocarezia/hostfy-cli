@@ -13,15 +13,20 @@ import (
 var removeCmd = &cobra.Command{
 	Use:   "remove <app>",
 	Short: "Remove um app instalado",
-	Long:  `Remove um app instalado. Por padrão mantém os dados (volumes).`,
+	Long:  `Remove um app instalado completamente (container, volumes, database e secrets).`,
 	Args:  cobra.ExactArgs(1),
 	RunE:  runRemove,
 }
 
-var removePurge bool
+var (
+	removePurge    bool // deprecated, mantido para compatibilidade
+	removeKeepData bool
+)
 
 func init() {
-	removeCmd.Flags().BoolVar(&removePurge, "purge", false, "Remove também os dados (volumes e database)")
+	removeCmd.Flags().BoolVar(&removeKeepData, "keep-data", false, "Mantém volumes e secrets para reinstalação futura")
+	removeCmd.Flags().BoolVar(&removePurge, "purge", false, "Deprecated: agora o padrão já remove tudo")
+	removeCmd.Flags().MarkHidden("purge") // esconde a flag deprecated
 }
 
 func runRemove(cmd *cobra.Command, args []string) error {
@@ -34,12 +39,13 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	steps := 4
-	if removePurge {
-		steps = 5
-		if appConfig.Database != "" {
-			steps = 6
-		}
+	// Calcular steps baseado no que será removido
+	steps := 4 // container + config + volumes + secrets
+	if appConfig.Database != "" && !removeKeepData {
+		steps = 5 // + database
+	}
+	if removeKeepData {
+		steps = 4 // container + config + backup secrets
 	}
 	progress := ui.NewProgress(steps)
 
@@ -61,16 +67,16 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		ui.Warning("Container pode já ter sido removido")
 	}
 
-	// 4. Backup de secrets (apenas se NÃO for purge)
-	if !removePurge {
+	if removeKeepData {
+		// Modo --keep-data: salva secrets para reinstalação futura
 		progress.Step("Salvando secrets para reinstalação...")
 		if err := storage.BackupAppSecrets(appConfig); err != nil {
 			ui.Warning("Erro ao salvar backup de secrets: " + err.Error())
 		}
-	}
+	} else {
+		// Modo padrão: remove TUDO
 
-	// 5. Remover database e volumes se purge
-	if removePurge {
+		// 4. Remover database se existir
 		if appConfig.Database != "" {
 			progress.Step("Removendo database...")
 			secrets, _ := storage.LoadSecrets()
@@ -80,29 +86,28 @@ func runRemove(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		// Remover volumes do app
+		// 5. Remover volumes do app
 		progress.Step("Removendo volumes...")
 		if err := dockerClient.RemoveVolumesByPrefix(appName + "_"); err != nil {
 			ui.Warning("Erro ao remover volumes: " + err.Error())
 		}
 
-		// Remover backup de secrets também
+		// 6. Remover backup de secrets se existir
 		if err := storage.DeleteAppSecretsBackup(appName); err != nil {
 			ui.Warning("Erro ao remover backup de secrets: " + err.Error())
 		}
 	}
 
-	// 6. Remover configuração
+	// Remover configuração
 	progress.Step("Removendo configuração...")
 	if err := storage.DeleteApp(appName); err != nil {
 		ui.Warning("Erro ao remover configuração: " + err.Error())
 	}
 
-	ui.Success(fmt.Sprintf("%s removido!", appName))
+	ui.Success(fmt.Sprintf("%s removido completamente!", appName))
 
-	if !removePurge {
-		ui.Info("Volumes e secrets mantidos. Use --purge para remover tudo.")
-		ui.Info("Na próxima instalação, as secrets serão reutilizadas automaticamente.")
+	if removeKeepData {
+		ui.Info("Volumes e secrets mantidos para reinstalação futura.")
 	}
 
 	return nil
