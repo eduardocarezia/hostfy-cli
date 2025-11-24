@@ -8,7 +8,7 @@ import (
 
 const (
 	ContainerName = "hostfy_traefik"
-	Image         = "traefik:v3.0"
+	Image         = "traefik:v3.2"
 )
 
 type Manager struct {
