@@ -5,7 +5,7 @@ build/
 *.dll
 *.so
 *.dylib
-hostfy
+/hostfy
 
 # Test binary
 *.test
