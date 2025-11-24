@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/hostfy/cli/internal/storage"
+	"github.com/eduardocarezia/hostfy-cli/internal/storage"
 )
 
 const (

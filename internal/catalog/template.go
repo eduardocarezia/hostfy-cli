@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/hostfy/cli/internal/storage"
+	"github.com/eduardocarezia/hostfy-cli/internal/storage"
 )
 
 type TemplateContext struct {

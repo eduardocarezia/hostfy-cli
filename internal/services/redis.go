@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hostfy/cli/internal/docker"
+	"github.com/eduardocarezia/hostfy-cli/internal/docker"
 )
 
 const (

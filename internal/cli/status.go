@@ -7,10 +7,10 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/hostfy/cli/internal/docker"
-	"github.com/hostfy/cli/internal/services"
-	"github.com/hostfy/cli/internal/storage"
-	"github.com/hostfy/cli/internal/traefik"
+	"github.com/eduardocarezia/hostfy-cli/internal/docker"
+	"github.com/eduardocarezia/hostfy-cli/internal/services"
+	"github.com/eduardocarezia/hostfy-cli/internal/storage"
+	"github.com/eduardocarezia/hostfy-cli/internal/traefik"
 	"github.com/spf13/cobra"
 )
 

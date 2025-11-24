@@ -3,7 +3,7 @@ package traefik
 import (
 	"fmt"
 
-	"github.com/hostfy/cli/internal/docker"
+	"github.com/eduardocarezia/hostfy-cli/internal/docker"
 )
 
 const (

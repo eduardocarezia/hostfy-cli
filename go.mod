@@ -1,4 +1,4 @@
-module github.com/hostfy/cli
+module github.com/eduardocarezia/hostfy-cli
 
 go 1.21
 

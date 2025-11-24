@@ -100,7 +100,7 @@ hostfy restart <app|all>            # Reinicia container(s)
 ## Catálogo
 
 O catálogo é um arquivo JSON com definições de apps. Por padrão:
-`https://raw.githubusercontent.com/hostfy/catalog/main/catalog.json`
+`https://raw.githubusercontent.com/eduardocarezia/hostfy-cli/main/catalog.json`
 
 ### Apps Disponíveis
 

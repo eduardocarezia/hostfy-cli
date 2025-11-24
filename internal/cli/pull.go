@@ -3,10 +3,10 @@ package cli
 import (
 	"fmt"
 
-	"github.com/hostfy/cli/internal/catalog"
-	"github.com/hostfy/cli/internal/docker"
-	"github.com/hostfy/cli/internal/storage"
-	"github.com/hostfy/cli/internal/ui"
+	"github.com/eduardocarezia/hostfy-cli/internal/catalog"
+	"github.com/eduardocarezia/hostfy-cli/internal/docker"
+	"github.com/eduardocarezia/hostfy-cli/internal/storage"
+	"github.com/eduardocarezia/hostfy-cli/internal/ui"
 	"github.com/spf13/cobra"
 )
 

@@ -1,11 +1,9 @@
 #!/bin/bash
 set -e
 
-HOSTFY_VERSION="${HOSTFY_VERSION:-1.0.0}"
 HOSTFY_BIN="/usr/local/bin/hostfy"
 HOSTFY_DIR="/etc/hostfy"
 GITHUB_REPO="${GITHUB_REPO:-eduardocarezia/hostfy-cli}"
-GITHUB_RELEASE="https://github.com/${GITHUB_REPO}/releases/download/v${HOSTFY_VERSION}"
 
 # Cores
 RED='\033[0;31m'
@@ -47,7 +45,7 @@ if [ "$OS" != "linux" ]; then
 fi
 
 log "Detectado: ${OS}/${ARCH}"
-log "Instalando hostfy v${HOSTFY_VERSION}..."
+log "Instalando hostfy..."
 echo ""
 
 # 1. Verificar/Instalar Docker
@@ -69,41 +67,31 @@ if ! docker info &> /dev/null; then
     systemctl start docker
 fi
 
-# 2. Baixar binário do hostfy
-info "[2/5] Baixando hostfy..."
-DOWNLOAD_URL="${GITHUB_RELEASE}/hostfy-${OS}-${ARCH}"
+# 2. Instalar hostfy
+info "[2/5] Instalando hostfy..."
 
-# Tentar baixar da release
-if curl -fsSL "${DOWNLOAD_URL}" -o "${HOSTFY_BIN}" 2>/dev/null; then
-    chmod +x "${HOSTFY_BIN}"
-    log "hostfy baixado ✓"
-else
-    warn "Release não encontrada em ${DOWNLOAD_URL}"
-    log "Instalando via build..."
-
-    # Instalar Go se não existir
-    if ! command -v go &> /dev/null; then
-        log "Instalando Go..."
-        GO_VERSION="1.21.5"
-        curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz" -o /tmp/go.tar.gz
-        rm -rf /usr/local/go
-        tar -C /usr/local -xzf /tmp/go.tar.gz
-        rm /tmp/go.tar.gz
-        export PATH=$PATH:/usr/local/go/bin
-        log "Go instalado ✓"
-    fi
-
-    # Clonar e compilar
-    log "Compilando hostfy..."
-    TEMP_DIR=$(mktemp -d)
-    cd "$TEMP_DIR"
-    git clone "https://github.com/${GITHUB_REPO}.git" . 2>/dev/null || error "Falha ao clonar repositório"
-    /usr/local/go/bin/go build -ldflags "-s -w" -o "${HOSTFY_BIN}" ./cmd/hostfy
-    chmod +x "${HOSTFY_BIN}"
-    cd /
-    rm -rf "$TEMP_DIR"
-    log "hostfy compilado ✓"
+# Instalar Go se não existir
+if ! command -v go &> /dev/null; then
+    log "Instalando Go..."
+    GO_VERSION="1.21.5"
+    curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz" -o /tmp/go.tar.gz
+    rm -rf /usr/local/go
+    tar -C /usr/local -xzf /tmp/go.tar.gz
+    rm /tmp/go.tar.gz
+    export PATH=$PATH:/usr/local/go/bin
+    log "Go instalado ✓"
 fi
+
+# Clonar e compilar
+log "Compilando hostfy..."
+TEMP_DIR=$(mktemp -d)
+cd "$TEMP_DIR"
+git clone "https://github.com/${GITHUB_REPO}.git" . || error "Falha ao clonar repositório"
+/usr/local/go/bin/go build -ldflags "-s -w" -o "${HOSTFY_BIN}" ./cmd/hostfy
+chmod +x "${HOSTFY_BIN}"
+cd /
+rm -rf "$TEMP_DIR"
+log "hostfy compilado ✓"
 
 # 3. Criar diretórios
 info "[3/5] Criando diretórios..."
