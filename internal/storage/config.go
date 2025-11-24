@@ -52,10 +52,19 @@ func GetAppPath(name string) string {
 	return filepath.Join(GetAppsDir(), name+".json")
 }
 
+func GetAppSecretsBackupDir() string {
+	return filepath.Join(HostfyDir, "secrets_backup")
+}
+
+func GetAppSecretsBackupPath(name string) string {
+	return filepath.Join(GetAppSecretsBackupDir(), name+".json")
+}
+
 func EnsureDirectories() error {
 	dirs := []string{
 		HostfyDir,
 		GetAppsDir(),
+		GetAppSecretsBackupDir(),
 	}
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {

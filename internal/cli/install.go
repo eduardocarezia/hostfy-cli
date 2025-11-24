@@ -125,6 +125,16 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	// 5. Preparar envs
 	progress.Step("Gerando configurações...")
 	tmplCtx := catalog.NewTemplateContext(stackName, installDomain, secrets)
+
+	// Verificar se há secrets de instalação anterior (para reutilizar encryption keys, etc.)
+	if storage.AppSecretsBackupExists(stackName) {
+		backup, err := storage.LoadAppSecretsBackup(stackName)
+		if err == nil && backup.CatalogApp == appID {
+			tmplCtx.SetPreservedSecrets(backup.Secrets)
+			progress.SubStep("Reutilizando secrets de instalação anterior")
+		}
+	}
+
 	resolvedEnv := tmplCtx.ResolveEnv(app.Env)
 
 	// Adicionar envs do usuário

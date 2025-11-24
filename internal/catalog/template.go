@@ -8,19 +8,23 @@ import (
 )
 
 type TemplateContext struct {
-	AppName      string
-	AppDomain    string
-	AppDatabase  string
-	Secrets      *storage.Secrets
-	ServiceHosts map[string]string
+	AppName          string
+	AppDomain        string
+	AppDatabase      string
+	Secrets          *storage.Secrets
+	ServiceHosts     map[string]string
+	PreservedSecrets map[string]string // Secrets de instalações anteriores
+	generatedCache   map[string]string // Cache de secrets geradas nesta sessão
 }
 
 func NewTemplateContext(appName, domain string, secrets *storage.Secrets) *TemplateContext {
 	return &TemplateContext{
-		AppName:     appName,
-		AppDomain:   domain,
-		AppDatabase: strings.ReplaceAll(appName, "-", "_") + "_db",
-		Secrets:     secrets,
+		AppName:          appName,
+		AppDomain:        domain,
+		AppDatabase:      strings.ReplaceAll(appName, "-", "_") + "_db",
+		Secrets:          secrets,
+		PreservedSecrets: make(map[string]string),
+		generatedCache:   make(map[string]string),
 		ServiceHosts: map[string]string{
 			"postgres": "hostfy_postgres",
 			"redis":    "hostfy_redis",
@@ -28,10 +32,30 @@ func NewTemplateContext(appName, domain string, secrets *storage.Secrets) *Templ
 	}
 }
 
+// SetPreservedSecrets define secrets de instalações anteriores para reutilização
+func (tc *TemplateContext) SetPreservedSecrets(secrets map[string]string) {
+	tc.PreservedSecrets = secrets
+}
+
 func (tc *TemplateContext) ResolveEnv(env map[string]string) map[string]string {
 	resolved := make(map[string]string)
 	for key, value := range env {
-		resolved[key] = tc.resolveValue(value)
+		// Verifica se há uma secret preservada para esta key
+		if preserved, ok := tc.PreservedSecrets[key]; ok {
+			resolved[key] = preserved
+		} else {
+			resolved[key] = tc.resolveValueForKey(key, value)
+		}
+	}
+	return resolved
+}
+
+// resolveValueForKey resolve o valor e armazena em cache para keys que geram secrets
+func (tc *TemplateContext) resolveValueForKey(key, value string) string {
+	resolved := tc.resolveValue(value)
+	// Se o valor original continha template de secret, armazena no cache
+	if strings.Contains(value, "GENERATE_SECRET") || strings.Contains(value, "SYSTEM_GENERATE") {
+		tc.generatedCache[key] = resolved
 	}
 	return resolved
 }

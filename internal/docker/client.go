@@ -13,6 +13,7 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 )
@@ -306,6 +307,29 @@ func CreateDatabase(containerName, dbName, user string) error {
 	err := cmd.Run()
 	if err != nil && !strings.Contains(err.Error(), "already exists") {
 		return err
+	}
+	return nil
+}
+
+// RemoveVolume remove um volume Docker pelo nome
+func (c *Client) RemoveVolume(name string) error {
+	return c.cli.VolumeRemove(c.ctx, name, true) // force=true
+}
+
+// RemoveVolumesByPrefix remove todos os volumes que começam com um prefixo
+func (c *Client) RemoveVolumesByPrefix(prefix string) error {
+	volumes, err := c.cli.VolumeList(c.ctx, volume.ListOptions{})
+	if err != nil {
+		return err
+	}
+
+	for _, vol := range volumes.Volumes {
+		if strings.HasPrefix(vol.Name, prefix) {
+			if err := c.RemoveVolume(vol.Name); err != nil {
+				// Ignora erros de volumes em uso
+				continue
+			}
+		}
 	}
 	return nil
 }
