@@ -149,6 +149,17 @@ func downloadFile(url string) (string, error) {
 	}
 	defer resp.Body.Close()
 
+	// Verificar se o download foi bem sucedido
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("download falhou: status %d (verifique se existe um release no GitHub)", resp.StatusCode)
+	}
+
+	// Verificar content-type (não deve ser HTML)
+	contentType := resp.Header.Get("Content-Type")
+	if strings.Contains(contentType, "text/html") {
+		return "", fmt.Errorf("download retornou HTML ao invés de binário (release não encontrado)")
+	}
+
 	tmpFile, err := os.CreateTemp("", "hostfy-*")
 	if err != nil {
 		return "", err
@@ -159,6 +170,21 @@ func downloadFile(url string) (string, error) {
 	if err != nil {
 		os.Remove(tmpFile.Name())
 		return "", err
+	}
+
+	// Verificar se o arquivo baixado é um binário válido (não HTML)
+	tmpFile.Seek(0, 0)
+	header := make([]byte, 4)
+	tmpFile.Read(header)
+
+	// Verificar magic bytes: ELF (Linux) ou Mach-O (macOS)
+	isELF := header[0] == 0x7f && header[1] == 'E' && header[2] == 'L' && header[3] == 'F'
+	isMachO := (header[0] == 0xfe && header[1] == 0xed && header[2] == 0xfa) || // 32-bit
+		(header[0] == 0xcf && header[1] == 0xfa && header[2] == 0xed) // 64-bit
+
+	if !isELF && !isMachO {
+		os.Remove(tmpFile.Name())
+		return "", fmt.Errorf("arquivo baixado não é um binário válido (pode ser página de erro)")
 	}
 
 	return tmpFile.Name(), nil
