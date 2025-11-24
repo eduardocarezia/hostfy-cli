@@ -67,6 +67,17 @@ if ! docker info &> /dev/null; then
     systemctl start docker
 fi
 
+# Configurar Docker para aceitar API 1.24 (compatibilidade com Traefik)
+log "Configurando compatibilidade Docker API..."
+mkdir -p /etc/systemd/system/docker.service.d
+cat > /etc/systemd/system/docker.service.d/api-version.conf << 'EOF'
+[Service]
+Environment="DOCKER_MIN_API_VERSION=1.24"
+EOF
+systemctl daemon-reload
+systemctl restart docker
+log "Docker API configurado ✓"
+
 # 2. Instalar hostfy
 info "[2/5] Instalando hostfy..."
 
