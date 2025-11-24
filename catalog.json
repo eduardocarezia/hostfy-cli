@@ -71,10 +71,13 @@
           "name": "worker",
           "image": "n8nio/n8n:latest",
           "port": 5678,
-          "command": "n8n worker",
+          "command": "worker",
           "env": {
             "N8N_DISABLE_UI": "true"
           },
+          "volumes": [
+            "{{APP_NAME}}_data:/home/node/.n8n"
+          ],
           "traefik": {
             "routes": [
               {"subdomain": "{{N8N_WORKER_DOMAIN}}", "port": 5678}
