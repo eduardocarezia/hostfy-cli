@@ -148,7 +148,7 @@ log "Watchdog service configurado ✓"
 # Finalização
 echo ""
 echo -e "${GREEN}╔════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║${NC}    ${BOLD}hostfy instalado com sucesso!${NC} 🎉     ${GREEN}║${NC}"
+echo -e "${GREEN}║${NC}   ${BOLD}hostfy instalado com sucesso!${NC} 🎉     ${GREEN}║${NC}"
 echo -e "${GREEN}╚════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "${BOLD}Próximos passos:${NC}"

@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
@@ -43,7 +43,7 @@ func (c *Client) Close() {
 }
 
 func (c *Client) EnsureNetwork() error {
-	networks, err := c.cli.NetworkList(c.ctx, types.NetworkListOptions{
+	networks, err := c.cli.NetworkList(c.ctx, network.ListOptions{
 		Filters: filters.NewArgs(filters.Arg("name", NetworkName)),
 	})
 	if err != nil {
@@ -54,14 +54,14 @@ func (c *Client) EnsureNetwork() error {
 		return nil
 	}
 
-	_, err = c.cli.NetworkCreate(c.ctx, NetworkName, types.NetworkCreate{
+	_, err = c.cli.NetworkCreate(c.ctx, NetworkName, network.CreateOptions{
 		Driver: "bridge",
 	})
 	return err
 }
 
-func (c *Client) PullImage(image string) error {
-	reader, err := c.cli.ImagePull(c.ctx, image, types.ImagePullOptions{})
+func (c *Client) PullImage(imageName string) error {
+	reader, err := c.cli.ImagePull(c.ctx, imageName, image.PullOptions{})
 	if err != nil {
 		return err
 	}
@@ -71,7 +71,7 @@ func (c *Client) PullImage(image string) error {
 }
 
 func (c *Client) ContainerExists(name string) (bool, error) {
-	containers, err := c.cli.ContainerList(c.ctx, types.ContainerListOptions{
+	containers, err := c.cli.ContainerList(c.ctx, container.ListOptions{
 		All:     true,
 		Filters: filters.NewArgs(filters.Arg("name", "^/"+name+"$")),
 	})
@@ -82,7 +82,7 @@ func (c *Client) ContainerExists(name string) (bool, error) {
 }
 
 func (c *Client) ContainerRunning(name string) (bool, error) {
-	containers, err := c.cli.ContainerList(c.ctx, types.ContainerListOptions{
+	containers, err := c.cli.ContainerList(c.ctx, container.ListOptions{
 		Filters: filters.NewArgs(filters.Arg("name", "^/"+name+"$")),
 	})
 	if err != nil {
@@ -92,7 +92,7 @@ func (c *Client) ContainerRunning(name string) (bool, error) {
 }
 
 func (c *Client) GetContainerID(name string) (string, error) {
-	containers, err := c.cli.ContainerList(c.ctx, types.ContainerListOptions{
+	containers, err := c.cli.ContainerList(c.ctx, container.ListOptions{
 		All:     true,
 		Filters: filters.NewArgs(filters.Arg("name", "^/"+name+"$")),
 	})
@@ -181,7 +181,7 @@ func (c *Client) CreateContainer(cfg *ContainerConfig) (string, error) {
 }
 
 func (c *Client) StartContainer(id string) error {
-	return c.cli.ContainerStart(c.ctx, id, types.ContainerStartOptions{})
+	return c.cli.ContainerStart(c.ctx, id, container.StartOptions{})
 }
 
 func (c *Client) StopContainer(name string) error {
@@ -190,7 +190,7 @@ func (c *Client) StopContainer(name string) error {
 }
 
 func (c *Client) RemoveContainer(name string, force bool) error {
-	return c.cli.ContainerRemove(c.ctx, name, types.ContainerRemoveOptions{
+	return c.cli.ContainerRemove(c.ctx, name, container.RemoveOptions{
 		Force:         force,
 		RemoveVolumes: false,
 	})
@@ -225,7 +225,7 @@ func (c *Client) WaitForHealthy(name string, timeout time.Duration) error {
 }
 
 func (c *Client) GetContainerLogs(name string, tail string, follow bool) (io.ReadCloser, error) {
-	return c.cli.ContainerLogs(c.ctx, name, types.ContainerLogsOptions{
+	return c.cli.ContainerLogs(c.ctx, name, container.LogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Tail:       tail,
