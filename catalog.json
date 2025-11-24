@@ -67,7 +67,8 @@
         "N8N_ENCRYPTION_KEY": "{{GENERATE_SECRET_32}}",
         "N8N_PROTOCOL": "https",
         "N8N_TRUST_PROXY": "true",
-        "GENERIC_TIMEZONE": "America/Sao_Paulo"
+        "GENERIC_TIMEZONE": "America/Sao_Paulo",
+        "N8N_WEBHOOK_DOMAIN" : "{{N8N_WEBHOOK_DOMAIN}}"
       },
       "containers": [
         {
