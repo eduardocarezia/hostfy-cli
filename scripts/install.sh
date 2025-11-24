@@ -87,6 +87,7 @@ log "Compilando hostfy..."
 TEMP_DIR=$(mktemp -d)
 cd "$TEMP_DIR"
 git clone "https://github.com/${GITHUB_REPO}.git" . || error "Falha ao clonar repositório"
+/usr/local/go/bin/go mod tidy
 /usr/local/go/bin/go build -ldflags "-s -w" -o "${HOSTFY_BIN}" ./cmd/hostfy
 chmod +x "${HOSTFY_BIN}"
 cd /
