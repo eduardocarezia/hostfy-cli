@@ -79,7 +79,7 @@
           "env": {
             "N8N_HOST": "{{APP_DOMAIN}}",
             "N8N_EDITOR_BASE_URL": "https://{{APP_DOMAIN}}",
-            "WEBHOOK_URL": "https://{{APP_DOMAIN}}"
+            "WEBHOOK_URL": "https://{{N8N_WEBHOOK_DOMAIN}}"
           },
           "volumes": [
             "{{APP_NAME}}_data:/home/node/.n8n"
