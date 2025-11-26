@@ -307,13 +307,11 @@
     "chatwoot": {
       "name": "Chatwoot",
       "description": "Customer Engagement Platform - Atendimento ao cliente omnichannel",
-      "image": "chatwoot/chatwoot:latest",
-      "port": 3000,
       "dependencies": [
         "postgres",
         "redis"
       ],
-      "env": {
+      "shared_env": {
         "RAILS_ENV": "production",
         "NODE_ENV": "production",
         "INSTALLATION_ENV": "docker",
@@ -329,8 +327,27 @@
         "DEFAULT_LOCALE": "pt_BR",
         "ENABLE_ACCOUNT_SIGNUP": "false"
       },
-      "volumes": [
-        "{{APP_NAME}}_storage:/app/storage"
+      "containers": [
+        {
+          "name": "rails",
+          "image": "chatwoot/chatwoot:latest",
+          "port": 3000,
+          "is_main": true,
+          "command": "bundle exec rails s -p 3000 -b 0.0.0.0",
+          "env": {},
+          "volumes": [
+            "{{APP_NAME}}_storage:/app/storage"
+          ]
+        },
+        {
+          "name": "sidekiq",
+          "image": "chatwoot/chatwoot:latest",
+          "command": "bundle exec sidekiq -C config/sidekiq.yml",
+          "env": {},
+          "volumes": [
+            "{{APP_NAME}}_storage:/app/storage"
+          ]
+        }
       ],
       "user_env": [
         {
@@ -339,7 +356,10 @@
           "default": "noreply@{{APP_DOMAIN}}"
         }
       ],
-      "command": "bundle exec rails s -p 3000 -b 0.0.0.0"
+      "post_install": {
+        "command": "docker compose exec {{APP_NAME}}-rails bundle exec rails db:chatwoot_prepare",
+        "description": "Prepara o banco de dados do Chatwoot (migrations e seeds)"
+      }
     },
     "evolution-api": {
       "name": "Evolution API",
