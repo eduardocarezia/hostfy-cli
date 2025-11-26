@@ -8,16 +8,26 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/eduardocarezia/hostfy-cli/internal/catalog"
+	"github.com/eduardocarezia/hostfy-cli/internal/docker"
+	"github.com/eduardocarezia/hostfy-cli/internal/storage"
+	"github.com/eduardocarezia/hostfy-cli/internal/traefik"
 	"github.com/eduardocarezia/hostfy-cli/internal/ui"
 	"github.com/spf13/cobra"
 )
 
 var upgradeCmd = &cobra.Command{
-	Use:   "upgrade",
-	Short: "Atualiza o hostfy CLI para a versão mais recente",
-	Long:  `Baixa o código fonte e recompila o hostfy CLI.`,
-	RunE:  runUpgrade,
+	Use:   "upgrade [stack]",
+	Short: "Atualiza o CLI ou uma stack instalada",
+	Long: `Sem argumentos: atualiza o hostfy CLI para a versão mais recente.
+Com argumento: atualiza uma stack instalada para a versão mais recente do catálogo.
+
+Exemplos:
+  hostfy upgrade          # Atualiza o CLI
+  hostfy upgrade n8n      # Atualiza a stack n8n`,
+	RunE: runUpgrade,
 }
 
 var (
@@ -30,10 +40,350 @@ const (
 )
 
 func init() {
-	upgradeCmd.Flags().BoolVar(&upgradeForce, "force", false, "Força a reinstalação mesmo se já estiver na última versão")
+	upgradeCmd.Flags().BoolVar(&upgradeForce, "force", false, "Força a atualização mesmo se já estiver na última versão")
 }
 
 func runUpgrade(cmd *cobra.Command, args []string) error {
+	// Se tiver argumento, atualiza a stack
+	if len(args) > 0 {
+		return runUpgradeStack(args[0])
+	}
+
+	// Sem argumentos, atualiza o CLI
+	return runUpgradeCLI()
+}
+
+// runUpgradeStack atualiza uma stack instalada
+func runUpgradeStack(stackName string) error {
+	// Carregar config da stack
+	appConfig, err := storage.LoadApp(stackName)
+	if err != nil {
+		ui.Error(fmt.Sprintf("Stack '%s' não encontrada", stackName))
+		return err
+	}
+
+	progress := ui.NewProgress(5)
+
+	// 1. Buscar catálogo atualizado
+	progress.Step("Buscando catálogo atualizado...")
+	_, err = catalog.Fetch(true)
+	if err != nil {
+		ui.Error("Erro ao atualizar catálogo: " + err.Error())
+		return err
+	}
+	progress.SubStep("Catálogo atualizado!")
+
+	// 2. Buscar app no catálogo
+	progress.Step("Comparando versões...")
+	catalogApp, err := catalog.GetApp(appConfig.CatalogApp)
+	if err != nil {
+		ui.Error("Stack não encontrada no catálogo: " + err.Error())
+		return err
+	}
+
+	// Conectar ao Docker
+	dockerClient, err := docker.NewClient()
+	if err != nil {
+		ui.Error("Erro ao conectar ao Docker: " + err.Error())
+		return err
+	}
+	defer dockerClient.Close()
+
+	// Verificar se é stack multi-container ou single-container
+	if appConfig.IsStack && len(appConfig.Containers) > 0 {
+		return upgradeMultiContainer(progress, dockerClient, appConfig, catalogApp)
+	}
+
+	return upgradeSingleContainer(progress, dockerClient, appConfig, catalogApp)
+}
+
+// upgradeSingleContainer atualiza um app single-container
+func upgradeSingleContainer(progress *ui.Progress, dockerClient *docker.Client, appConfig *storage.AppConfig, catalogApp *catalog.App) error {
+	oldImage := appConfig.Image
+	newImage := catalogApp.Image
+	imageChanged := oldImage != newImage
+
+	if imageChanged {
+		progress.SubStep(fmt.Sprintf("Nova imagem: %s", newImage))
+		progress.SubStep(fmt.Sprintf("Atual: %s", oldImage))
+	} else if !upgradeForce {
+		progress.SubStep("Imagem já está atualizada")
+		ui.Success(fmt.Sprintf("%s já está na versão mais recente!", appConfig.Name))
+		return nil
+	}
+
+	// Identificar novas envs do catálogo
+	secrets, _ := storage.EnsureSecrets()
+	tmplCtx := catalog.NewTemplateContext(appConfig.Name, appConfig.Domain, secrets)
+	newEnvs := tmplCtx.ResolveEnv(catalogApp.Env)
+
+	addedEnvs := []string{}
+	for key, value := range newEnvs {
+		if _, exists := appConfig.Env[key]; !exists {
+			appConfig.Env[key] = value
+			addedEnvs = append(addedEnvs, key)
+		}
+	}
+
+	if len(addedEnvs) > 0 {
+		for _, e := range addedEnvs {
+			progress.SubStep(fmt.Sprintf("Nova env: %s", e))
+		}
+	}
+
+	// 3. Baixar nova imagem
+	progress.Step("Baixando nova imagem...")
+	if err := dockerClient.PullImage(newImage); err != nil {
+		ui.Error("Erro ao baixar imagem: " + err.Error())
+		return err
+	}
+
+	// 4. Parar e recriar container
+	progress.Step("Recriando container...")
+	dockerClient.StopContainer(appConfig.Name)
+	dockerClient.RemoveContainer(appConfig.Name, true)
+
+	// Usar port salvo na config do app
+	port := appConfig.Port
+	if port == 0 {
+		port = catalogApp.Port
+	}
+
+	// Gerar novos labels
+	labels := traefik.GenerateLabels(appConfig.Name, appConfig.Domain, port)
+
+	// Recriar container
+	containerCfg := &docker.ContainerConfig{
+		Name:    appConfig.Name,
+		Image:   newImage,
+		Env:     appConfig.Env,
+		Labels:  labels,
+		Volumes: appConfig.Volumes,
+		Restart: "always",
+	}
+
+	if appConfig.Command != "" {
+		containerCfg.Command = strings.Fields(appConfig.Command)
+	}
+
+	containerID, err := dockerClient.CreateContainer(containerCfg)
+	if err != nil {
+		ui.Error("Erro ao recriar container: " + err.Error())
+		return err
+	}
+
+	if err := dockerClient.StartContainer(containerID); err != nil {
+		ui.Error("Erro ao iniciar container: " + err.Error())
+		return err
+	}
+
+	// 5. Salvar config atualizada
+	progress.Step("Salvando configuração...")
+	appConfig.Image = newImage
+	appConfig.ContainerID = containerID
+	appConfig.ImagePulledAt = time.Now().UTC().Format(time.RFC3339)
+	if err := storage.SaveApp(appConfig); err != nil {
+		ui.Warning("Erro ao salvar configuração: " + err.Error())
+	}
+
+	ui.Success(fmt.Sprintf("%s atualizado!", appConfig.Name))
+
+	fmt.Println()
+	if imageChanged {
+		fmt.Printf("  %s Imagem: %s → %s\n", ui.Green("•"), oldImage, newImage)
+	}
+	if len(addedEnvs) > 0 {
+		fmt.Printf("  %s Configs adicionadas: %v\n", ui.Green("•"), addedEnvs)
+	}
+	fmt.Printf("  %s Suas customizações foram preservadas\n", ui.Green("•"))
+	fmt.Println()
+
+	return nil
+}
+
+// upgradeMultiContainer atualiza uma stack com múltiplos containers
+func upgradeMultiContainer(progress *ui.Progress, dockerClient *docker.Client, appConfig *storage.AppConfig, catalogApp *catalog.App) error {
+	// Mapear containers do catálogo por nome
+	catalogContainers := make(map[string]*catalog.Container)
+	for i := range catalogApp.Containers {
+		catalogContainers[catalogApp.Containers[i].Name] = &catalogApp.Containers[i]
+	}
+
+	// Verificar imagens que mudaram
+	imagesToUpdate := []struct {
+		name     string
+		oldImage string
+		newImage string
+		index    int
+	}{}
+
+	for i, container := range appConfig.Containers {
+		if catContainer, ok := catalogContainers[container.Name]; ok {
+			if container.Image != catContainer.Image {
+				imagesToUpdate = append(imagesToUpdate, struct {
+					name     string
+					oldImage string
+					newImage string
+					index    int
+				}{
+					name:     container.Name,
+					oldImage: container.Image,
+					newImage: catContainer.Image,
+					index:    i,
+				})
+			}
+		}
+	}
+
+	if len(imagesToUpdate) == 0 && !upgradeForce {
+		progress.SubStep("Todas as imagens já estão atualizadas")
+		ui.Success(fmt.Sprintf("%s já está na versão mais recente!", appConfig.Name))
+		return nil
+	}
+
+	for _, img := range imagesToUpdate {
+		progress.SubStep(fmt.Sprintf("%s: %s → %s", img.name, img.oldImage, img.newImage))
+	}
+
+	// Identificar novas envs compartilhadas
+	secrets, _ := storage.EnsureSecrets()
+	tmplCtx := catalog.NewTemplateContext(appConfig.Name, appConfig.Domain, secrets)
+	newSharedEnvs := tmplCtx.ResolveEnv(catalogApp.SharedEnv)
+
+	addedEnvs := []string{}
+	if appConfig.SharedEnv == nil {
+		appConfig.SharedEnv = make(map[string]string)
+	}
+	for key, value := range newSharedEnvs {
+		if _, exists := appConfig.SharedEnv[key]; !exists {
+			appConfig.SharedEnv[key] = value
+			addedEnvs = append(addedEnvs, key)
+		}
+	}
+
+	if len(addedEnvs) > 0 {
+		for _, e := range addedEnvs {
+			progress.SubStep(fmt.Sprintf("Nova env compartilhada: %s", e))
+		}
+	}
+
+	// 3. Baixar novas imagens
+	progress.Step("Baixando novas imagens...")
+	for _, img := range imagesToUpdate {
+		progress.SubStep(fmt.Sprintf("Baixando %s...", img.newImage))
+		if err := dockerClient.PullImage(img.newImage); err != nil {
+			ui.Error(fmt.Sprintf("Erro ao baixar %s: %s", img.newImage, err.Error()))
+			return err
+		}
+	}
+
+	// Se --force mas sem imagens para atualizar, baixar todas as imagens
+	if len(imagesToUpdate) == 0 && upgradeForce {
+		for i, container := range appConfig.Containers {
+			if catContainer, ok := catalogContainers[container.Name]; ok {
+				progress.SubStep(fmt.Sprintf("Baixando %s...", catContainer.Image))
+				if err := dockerClient.PullImage(catContainer.Image); err != nil {
+					ui.Warning(fmt.Sprintf("Erro ao baixar %s: %s", catContainer.Image, err.Error()))
+				}
+				appConfig.Containers[i].Image = catContainer.Image
+			}
+		}
+	}
+
+	// 4. Recriar containers que mudaram
+	progress.Step("Recriando containers...")
+	for _, img := range imagesToUpdate {
+		containerConfig := &appConfig.Containers[img.index]
+		fullName := fmt.Sprintf("%s_%s", appConfig.Name, containerConfig.Name)
+
+		progress.SubStep(fmt.Sprintf("Recriando %s...", containerConfig.Name))
+
+		// Parar e remover
+		dockerClient.StopContainer(fullName)
+		dockerClient.RemoveContainer(fullName, true)
+
+		// Buscar config do catálogo
+		catContainer := catalogContainers[containerConfig.Name]
+
+		// Merge de envs: shared + container específico
+		mergedEnv := make(map[string]string)
+		for k, v := range appConfig.SharedEnv {
+			mergedEnv[k] = v
+		}
+		if containerConfig.Env != nil {
+			for k, v := range containerConfig.Env {
+				mergedEnv[k] = v
+			}
+		}
+
+		// Gerar labels se tiver domínio
+		var labels map[string]string
+		if containerConfig.Domain != "" && containerConfig.Port > 0 {
+			labels = traefik.GenerateLabels(fullName, containerConfig.Domain, containerConfig.Port)
+		}
+
+		// Criar container
+		cfg := &docker.ContainerConfig{
+			Name:    fullName,
+			Image:   img.newImage,
+			Env:     mergedEnv,
+			Labels:  labels,
+			Volumes: containerConfig.Volumes,
+			Restart: "always",
+		}
+
+		if containerConfig.Command != "" {
+			cfg.Command = strings.Fields(containerConfig.Command)
+		}
+
+		containerID, err := dockerClient.CreateContainer(cfg)
+		if err != nil {
+			ui.Error(fmt.Sprintf("Erro ao criar %s: %s", fullName, err.Error()))
+			return err
+		}
+
+		if err := dockerClient.StartContainer(containerID); err != nil {
+			ui.Error(fmt.Sprintf("Erro ao iniciar %s: %s", fullName, err.Error()))
+			return err
+		}
+
+		// Atualizar config
+		appConfig.Containers[img.index].Image = img.newImage
+		appConfig.Containers[img.index].ContainerID = containerID
+
+		// Aguardar container ficar pronto
+		if catContainer.IsMain {
+			dockerClient.WaitForHealthy(fullName, 30*time.Second)
+		}
+	}
+
+	// 5. Salvar config atualizada
+	progress.Step("Salvando configuração...")
+	appConfig.ImagePulledAt = time.Now().UTC().Format(time.RFC3339)
+	if err := storage.SaveApp(appConfig); err != nil {
+		ui.Warning("Erro ao salvar configuração: " + err.Error())
+	}
+
+	ui.Success(fmt.Sprintf("%s atualizado!", appConfig.Name))
+
+	fmt.Println()
+	if len(imagesToUpdate) > 0 {
+		fmt.Println("  Imagens atualizadas:")
+		for _, img := range imagesToUpdate {
+			fmt.Printf("    %s %s: %s → %s\n", ui.Green("•"), img.name, img.oldImage, img.newImage)
+		}
+	}
+	if len(addedEnvs) > 0 {
+		fmt.Printf("  %s Configs adicionadas: %v\n", ui.Green("•"), addedEnvs)
+	}
+	fmt.Printf("  %s Suas customizações foram preservadas\n", ui.Green("•"))
+	fmt.Println()
+
+	return nil
+}
+
+// runUpgradeCLI atualiza o próprio CLI
+func runUpgradeCLI() error {
 	progress := ui.NewProgress(5)
 
 	// 1. Verificar versão atual
