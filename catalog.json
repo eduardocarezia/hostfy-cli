@@ -308,7 +308,6 @@
       "name": "Chatwoot",
       "description": "Customer Engagement Platform - Atendimento ao cliente omnichannel",
       "dependencies": [
-        "postgres",
         "redis"
       ],
       "shared_env": {
@@ -317,17 +316,29 @@
         "INSTALLATION_ENV": "docker",
         "SECRET_KEY_BASE": "{{GENERATE_SECRET_64}}",
         "FRONTEND_URL": "https://{{APP_DOMAIN}}",
-        "POSTGRES_HOST": "{{SERVICE_postgres_HOST}}",
+        "POSTGRES_HOST": "{{APP_NAME}}-postgres",
         "POSTGRES_PORT": "5432",
-        "POSTGRES_DATABASE": "{{APP_DATABASE}}",
-        "POSTGRES_USERNAME": "{{SERVICE_postgres_USER}}",
-        "POSTGRES_PASSWORD": "{{SERVICE_postgres_PASSWORD}}",
+        "POSTGRES_DATABASE": "chatwoot",
+        "POSTGRES_USERNAME": "chatwoot",
+        "POSTGRES_PASSWORD": "{{GENERATE_SECRET_32}}",
         "REDIS_URL": "redis://{{SERVICE_redis_HOST}}:6379",
         "RAILS_LOG_TO_STDOUT": "true",
         "DEFAULT_LOCALE": "pt_BR",
         "ENABLE_ACCOUNT_SIGNUP": "false"
       },
       "containers": [
+        {
+          "name": "postgres",
+          "image": "pgvector/pgvector:pg16",
+          "env": {
+            "POSTGRES_USER": "chatwoot",
+            "POSTGRES_PASSWORD": "{{POSTGRES_PASSWORD}}",
+            "POSTGRES_DB": "chatwoot"
+          },
+          "volumes": [
+            "{{APP_NAME}}_postgres_data:/var/lib/postgresql/data"
+          ]
+        },
         {
           "name": "rails",
           "image": "chatwoot/chatwoot:latest",
