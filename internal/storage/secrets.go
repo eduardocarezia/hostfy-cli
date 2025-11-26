@@ -20,7 +20,8 @@ func GenerateSecret(length int) string {
 }
 
 func GeneratePassword(length int) string {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%"
+	// URL-safe charset: sem @, #, %, /, ?, & que quebram connection strings
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-."
 	bytes := make([]byte, length)
 	rand.Read(bytes)
 	for i := range bytes {
