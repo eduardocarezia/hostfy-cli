@@ -333,7 +333,7 @@
           "image": "chatwoot/chatwoot:latest",
           "port": 3000,
           "is_main": true,
-          "command": "bundle exec rails s -p 3000 -b 0.0.0.0",
+          "command": "sh -c 'bundle exec rails db:chatwoot_prepare && bundle exec rails s -p 3000 -b 0.0.0.0'",
           "env": {},
           "volumes": [
             "{{APP_NAME}}_storage:/app/storage"
@@ -355,11 +355,7 @@
           "prompt": "Email do remetente (para notificações)",
           "default": "noreply@{{APP_DOMAIN}}"
         }
-      ],
-      "post_install": {
-        "command": "docker compose exec {{APP_NAME}}-rails bundle exec rails db:chatwoot_prepare",
-        "description": "Prepara o banco de dados do Chatwoot (migrations e seeds)"
-      }
+      ]
     },
     "evolution-api": {
       "name": "Evolution API",
