@@ -207,7 +207,7 @@ func installStack(app *catalog.App, appID, stackName string) error {
 		// Preparar command
 		var command []string
 		if container.Command != "" {
-			command = strings.Fields(container.Command)
+			command = parseCommand(container.Command)
 		}
 
 		// Criar container
@@ -363,7 +363,7 @@ func installSingle(app *catalog.App, appID, stackName string) error {
 
 	var command []string
 	if app.Command != "" {
-		command = strings.Fields(app.Command)
+		command = parseCommand(app.Command)
 	}
 
 	containerCfg := &docker.ContainerConfig{
@@ -488,4 +488,46 @@ func resolveEnvReferences(value string, env map[string]string) string {
 		}
 		return match
 	})
+}
+
+// parseCommand faz parsing de um comando respeitando aspas simples e duplas
+func parseCommand(cmd string) []string {
+	var result []string
+	var current strings.Builder
+	inSingleQuote := false
+	inDoubleQuote := false
+
+	for i := 0; i < len(cmd); i++ {
+		c := cmd[i]
+
+		switch c {
+		case '\'':
+			if !inDoubleQuote {
+				inSingleQuote = !inSingleQuote
+				continue
+			}
+			current.WriteByte(c)
+		case '"':
+			if !inSingleQuote {
+				inDoubleQuote = !inDoubleQuote
+				continue
+			}
+			current.WriteByte(c)
+		case ' ', '\t':
+			if inSingleQuote || inDoubleQuote {
+				current.WriteByte(c)
+			} else if current.Len() > 0 {
+				result = append(result, current.String())
+				current.Reset()
+			}
+		default:
+			current.WriteByte(c)
+		}
+	}
+
+	if current.Len() > 0 {
+		result = append(result, current.String())
+	}
+
+	return result
 }

@@ -110,7 +110,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 
 	// Adicionar command se existir
 	if appConfig.Command != "" {
-		containerCfg.Command = strings.Fields(appConfig.Command)
+		containerCfg.Command = parseCommand(appConfig.Command)
 	}
 
 	containerID, err := dockerClient.CreateContainer(containerCfg)

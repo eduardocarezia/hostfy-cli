@@ -163,7 +163,7 @@ func upgradeSingleContainer(progress *ui.Progress, dockerClient *docker.Client, 
 	}
 
 	if appConfig.Command != "" {
-		containerCfg.Command = strings.Fields(appConfig.Command)
+		containerCfg.Command = parseCommand(appConfig.Command)
 	}
 
 	containerID, err := dockerClient.CreateContainer(containerCfg)
@@ -333,7 +333,7 @@ func upgradeMultiContainer(progress *ui.Progress, dockerClient *docker.Client, a
 		}
 
 		if containerConfig.Command != "" {
-			cfg.Command = strings.Fields(containerConfig.Command)
+			cfg.Command = parseCommand(containerConfig.Command)
 		}
 
 		containerID, err := dockerClient.CreateContainer(cfg)
