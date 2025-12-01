@@ -85,46 +85,121 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 	defer dockerClient.Close()
 
-	// Parar e remover container antigo
-	dockerClient.StopContainer(appName)
-	dockerClient.RemoveContainer(appName, true)
+	// Verificar se é uma Stack (múltiplos containers)
+	if appConfig.IsStack && len(appConfig.Containers) > 0 {
+		// Atualizar SharedEnv com as novas variáveis
+		if appConfig.SharedEnv == nil {
+			appConfig.SharedEnv = make(map[string]string)
+		}
+		for _, e := range updateEnv {
+			parts := strings.SplitN(e, "=", 2)
+			if len(parts) == 2 {
+				appConfig.SharedEnv[parts[0]] = parts[1]
+			}
+		}
 
-	// Usar port salvo na config do app
-	port := appConfig.Port
-	if port == 0 {
-		port = 80 // fallback
+		// Recriar cada container da Stack
+		for i, cont := range appConfig.Containers {
+			containerName := appName + "-" + cont.Name
+
+			// Parar e remover container
+			dockerClient.StopContainer(containerName)
+			dockerClient.RemoveContainer(containerName, true)
+
+			// Mesclar envs: SharedEnv + Env específico do container
+			mergedEnv := make(map[string]string)
+			for k, v := range appConfig.SharedEnv {
+				mergedEnv[k] = v
+			}
+			for k, v := range cont.Env {
+				mergedEnv[k] = v
+			}
+
+			// Determinar port e labels
+			port := cont.Port
+			if port == 0 {
+				port = 80
+			}
+
+			var labels map[string]string
+			if cont.IsMain {
+				labels = traefik.GenerateLabels(appName, appConfig.Domain, port)
+			} else if cont.Domain != "" {
+				labels = traefik.GenerateLabels(containerName, cont.Domain, port)
+			} else {
+				labels = map[string]string{}
+			}
+
+			containerCfg := &docker.ContainerConfig{
+				Name:    containerName,
+				Image:   cont.Image,
+				Env:     mergedEnv,
+				Labels:  labels,
+				Volumes: cont.Volumes,
+				Restart: "always",
+			}
+
+			// Adicionar command se existir para este container
+			if cont.Command != "" {
+				containerCfg.Command = parseCommand(cont.Command)
+			}
+
+			containerID, err := dockerClient.CreateContainer(containerCfg)
+			if err != nil {
+				ui.Error(fmt.Sprintf("Erro ao recriar container %s: %s", containerName, err.Error()))
+				return err
+			}
+
+			if err := dockerClient.StartContainer(containerID); err != nil {
+				ui.Error(fmt.Sprintf("Erro ao iniciar container %s: %s", containerName, err.Error()))
+				return err
+			}
+
+			// Atualizar ContainerID na config
+			appConfig.Containers[i].ContainerID = containerID
+		}
+	} else {
+		// App de container único
+		dockerClient.StopContainer(appName)
+		dockerClient.RemoveContainer(appName, true)
+
+		// Usar port salvo na config do app
+		port := appConfig.Port
+		if port == 0 {
+			port = 80 // fallback
+		}
+
+		// Gerar novos labels
+		labels := traefik.GenerateLabels(appName, appConfig.Domain, port)
+
+		// Recriar container com todas as configs preservadas
+		containerCfg := &docker.ContainerConfig{
+			Name:    appName,
+			Image:   appConfig.Image,
+			Env:     appConfig.Env,
+			Labels:  labels,
+			Volumes: appConfig.Volumes,
+			Restart: "always",
+		}
+
+		// Adicionar command se existir
+		if appConfig.Command != "" {
+			containerCfg.Command = parseCommand(appConfig.Command)
+		}
+
+		containerID, err := dockerClient.CreateContainer(containerCfg)
+		if err != nil {
+			ui.Error("Erro ao recriar container: " + err.Error())
+			return err
+		}
+
+		if err := dockerClient.StartContainer(containerID); err != nil {
+			ui.Error("Erro ao iniciar container: " + err.Error())
+			return err
+		}
+
+		appConfig.ContainerID = containerID
 	}
-
-	// Gerar novos labels
-	labels := traefik.GenerateLabels(appName, appConfig.Domain, port)
-
-	// Recriar container com todas as configs preservadas
-	containerCfg := &docker.ContainerConfig{
-		Name:    appName,
-		Image:   appConfig.Image,
-		Env:     appConfig.Env,
-		Labels:  labels,
-		Volumes: appConfig.Volumes,
-		Restart: "always",
-	}
-
-	// Adicionar command se existir
-	if appConfig.Command != "" {
-		containerCfg.Command = parseCommand(appConfig.Command)
-	}
-
-	containerID, err := dockerClient.CreateContainer(containerCfg)
-	if err != nil {
-		ui.Error("Erro ao recriar container: " + err.Error())
-		return err
-	}
-
-	if err := dockerClient.StartContainer(containerID); err != nil {
-		ui.Error("Erro ao iniciar container: " + err.Error())
-		return err
-	}
-
-	appConfig.ContainerID = containerID
 
 	// 3. Salvar nova config
 	progress.Step("Salvando configuração...")
