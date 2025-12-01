@@ -70,7 +70,8 @@
         "N8N_PROXY_HOPS": "2",
         "GENERIC_TIMEZONE": "America/Sao_Paulo",
         "N8N_WEBHOOK_DOMAIN": "{{APP_DOMAIN}}",
-        "N8N_CONCURRENCY_PRODUCTION_LIMIT": "20"
+        "N8N_CONCURRENCY_PRODUCTION_LIMIT": "20",
+        "N8N_RUNNERS_ENABLED":"true"
       },
       "containers": [
         {
@@ -112,7 +113,7 @@
         {
           "name": "worker",
           "image": "n8nio/n8n:latest",
-          "command": "worker",
+          "command": "worker --concurrency=10",
           "env": {
             "N8N_DISABLE_UI": "true"
           },
