@@ -71,7 +71,7 @@
         "GENERIC_TIMEZONE": "America/Sao_Paulo",
         "N8N_WEBHOOK_DOMAIN": "{{APP_DOMAIN}}",
         "N8N_CONCURRENCY_PRODUCTION_LIMIT": "20",
-        "N8N_RUNNERS_ENABLED":"true"
+        "N8N_RUNNERS_ENABLED": "true"
       },
       "containers": [
         {
@@ -223,13 +223,57 @@
         "CACHE_LOCAL_ENABLED": "false",
         "AUTHENTICATION_TYPE": "apikey",
         "AUTHENTICATION_API_KEY": "{{GENERATE_SECRET_32}}",
-        "AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES": "true"
+        "AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES": "true",
+        "CHATWOOT_ENABLED": "true",
+        "CHATWOOT_MESSAGE_READ": "true",
+        "CHATWOOT_MESSAGE_DELETE": "true",
+        "CHATWOOT_BOT_CONTACT": "true",
+        "OPENAI_ENABLED": "true",
+        "DIFY_ENABLED": "true",
+        "N8N_ENABLED": "true",
+        "TYPEBOT_ENABLED": "true"
       },
       "volumes": [
         "{{APP_NAME}}_instances:/evolution/instances",
         "{{APP_NAME}}_store:/evolution/store"
       ],
-      "user_env": []
+      "user_env": [
+        {
+          "key": "CHATWOOT_ENABLED",
+          "prompt": "Habilitar integração com Chatwoot? (true/false)",
+          "default": "false"
+        },
+        {
+          "key": "CHATWOOT_ACCOUNT_ID",
+          "prompt": "ID da conta no Chatwoot (deixe vazio se não usar Chatwoot)",
+          "default": ""
+        },
+        {
+          "key": "CHATWOOT_TOKEN",
+          "prompt": "Token de acesso do Chatwoot (deixe vazio se não usar Chatwoot)",
+          "default": ""
+        },
+        {
+          "key": "CHATWOOT_URL",
+          "prompt": "URL do Chatwoot (ex: https://chatwoot.seudominio.com)",
+          "default": ""
+        },
+        {
+          "key": "CHATWOOT_SIGN_MSG",
+          "prompt": "Assinar mensagens com nome do agente? (true/false)",
+          "default": "false"
+        },
+        {
+          "key": "CHATWOOT_REOPEN_CONVERSATION",
+          "prompt": "Reabrir conversa ao receber nova mensagem? (true/false)",
+          "default": "true"
+        },
+        {
+          "key": "CHATWOOT_CONVERSATION_PENDING",
+          "prompt": "Marcar conversa como pendente ao abrir? (true/false)",
+          "default": "false"
+        }
+      ]
     },
     "uptime-kuma": {
       "name": "Uptime Kuma",
