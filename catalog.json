@@ -127,9 +127,7 @@
     "chatwoot": {
       "name": "Chatwoot",
       "description": "Customer Engagement Platform - Atendimento ao cliente omnichannel",
-      "dependencies": [
-        "redis"
-      ],
+      "dependencies": [],
       "shared_env": {
         "RAILS_ENV": "production",
         "NODE_ENV": "production",
@@ -141,7 +139,7 @@
         "POSTGRES_DATABASE": "chatwoot",
         "POSTGRES_USERNAME": "chatwoot",
         "POSTGRES_PASSWORD": "{{GENERATE_SECRET_32}}",
-        "REDIS_URL": "redis://{{SERVICE_redis_HOST}}:6379",
+        "REDIS_URL": "redis://{{APP_NAME}}-redis:6379",
         "RAILS_LOG_TO_STDOUT": "true",
         "DEFAULT_LOCALE": "pt_BR",
         "ENABLE_ACCOUNT_SIGNUP": "false"
@@ -157,6 +155,14 @@
           },
           "volumes": [
             "{{APP_NAME}}_postgres_data:/var/lib/postgresql/data"
+          ]
+        },
+        {
+          "name": "redis",
+          "image": "redis:7-alpine",
+          "command": "redis-server --appendonly yes",
+          "volumes": [
+            "{{APP_NAME}}_redis_data:/data"
           ]
         },
         {
