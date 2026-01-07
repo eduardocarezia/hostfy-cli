@@ -137,7 +137,9 @@
         "POSTGRES_HOST": "{{APP_NAME}}-postgres",
         "POSTGRES_PORT": "5432",
         "POSTGRES_DATABASE": "chatwoot",
+        "POSTGRES_DB": "chatwoot",
         "POSTGRES_USERNAME": "chatwoot",
+        "POSTGRES_USER": "chatwoot",
         "POSTGRES_PASSWORD": "{{GENERATE_SECRET_32}}",
         "REDIS_URL": "redis://{{APP_NAME}}-redis:6379",
         "RAILS_LOG_TO_STDOUT": "true",
@@ -148,11 +150,7 @@
         {
           "name": "postgres",
           "image": "pgvector/pgvector:pg16",
-          "env": {
-            "POSTGRES_USER": "chatwoot",
-            "POSTGRES_PASSWORD": "{{POSTGRES_PASSWORD}}",
-            "POSTGRES_DB": "chatwoot"
-          },
+          "env": {},
           "volumes": [
             "{{APP_NAME}}_postgres_data:/var/lib/postgresql/data"
           ]

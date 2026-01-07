@@ -15,15 +15,16 @@ import (
 var updateCmd = &cobra.Command{
 	Use:   "update <app>",
 	Short: "Atualiza configurações de um app instalado",
-	Long: `Altera variáveis de ambiente, domínio ou imagem Docker de um app já instalado.
+	Long: `Altera variáveis de ambiente, domínio ou versão da imagem Docker de um app já instalado.
 
 Exemplos:
-  hostfy update n8n --env DEBUG=true              # Altera variável de ambiente
-  hostfy update n8n --domain new.example.com      # Altera domínio
-  hostfy update n8n --image n8nio/n8n:1.20.0      # Altera versão da imagem
+  hostfy update n8n --env DEBUG=true           # Altera variável de ambiente
+  hostfy update n8n --domain new.example.com   # Altera domínio
+  hostfy update n8n --image v2.2.0             # Altera para tag v2.2.0
+  hostfy update n8n --image latest             # Altera para tag latest
 
 Para stacks com múltiplos containers:
-  hostfy update mystack --image redis:7.2 --container cache   # Altera imagem de container específico`,
+  hostfy update mystack --image 7.2 --container cache   # Altera tag do container cache`,
 	Args: cobra.ExactArgs(1),
 	RunE: runUpdate,
 }
@@ -38,7 +39,7 @@ var (
 func init() {
 	updateCmd.Flags().StringSliceVar(&updateEnv, "env", []string{}, "Variáveis de ambiente para alterar (KEY=VALUE)")
 	updateCmd.Flags().StringVar(&updateDomain, "domain", "", "Novo domínio")
-	updateCmd.Flags().StringVar(&updateImage, "image", "", "Nova imagem Docker (ex: nginx:1.25.0)")
+	updateCmd.Flags().StringVar(&updateImage, "image", "", "Nova tag da imagem (ex: v2.2.0, latest)")
 	updateCmd.Flags().StringVar(&updateContainer, "container", "", "Container específico para atualizar (apenas para stacks)")
 }
 
@@ -102,6 +103,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	// Atualizar imagem
 	imageUpdated := false
 	containerIndexToUpdate := -1
+	var newFullImage string
 	if updateImage != "" {
 		if appConfig.IsStack && len(appConfig.Containers) > 0 {
 			// Stack multi-container: precisa do --container ou atualizar o main
@@ -110,8 +112,9 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 				found := false
 				for i, cont := range appConfig.Containers {
 					if cont.Name == updateContainer {
-						if cont.Image != updateImage {
-							changes = append(changes, fmt.Sprintf("%s image: %s → %s", cont.Name, cont.Image, updateImage))
+						newFullImage = resolveImageTag(cont.Image, updateImage)
+						if cont.Image != newFullImage {
+							changes = append(changes, fmt.Sprintf("%s image: %s → %s", cont.Name, cont.Image, newFullImage))
 							containerIndexToUpdate = i
 							imageUpdated = true
 						}
@@ -131,8 +134,9 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 				// Sem --container, atualizar o container principal (IsMain)
 				for i, cont := range appConfig.Containers {
 					if cont.IsMain {
-						if cont.Image != updateImage {
-							changes = append(changes, fmt.Sprintf("%s image: %s → %s", cont.Name, cont.Image, updateImage))
+						newFullImage = resolveImageTag(cont.Image, updateImage)
+						if cont.Image != newFullImage {
+							changes = append(changes, fmt.Sprintf("%s image: %s → %s", cont.Name, cont.Image, newFullImage))
 							containerIndexToUpdate = i
 							imageUpdated = true
 						}
@@ -141,8 +145,9 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 				}
 				if containerIndexToUpdate == -1 {
 					// Se não tem IsMain, atualizar o primeiro
-					if appConfig.Containers[0].Image != updateImage {
-						changes = append(changes, fmt.Sprintf("%s image: %s → %s", appConfig.Containers[0].Name, appConfig.Containers[0].Image, updateImage))
+					newFullImage = resolveImageTag(appConfig.Containers[0].Image, updateImage)
+					if appConfig.Containers[0].Image != newFullImage {
+						changes = append(changes, fmt.Sprintf("%s image: %s → %s", appConfig.Containers[0].Name, appConfig.Containers[0].Image, newFullImage))
 						containerIndexToUpdate = 0
 						imageUpdated = true
 					}
@@ -150,8 +155,9 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 			}
 		} else {
 			// Single container
-			if appConfig.Image != updateImage {
-				changes = append(changes, fmt.Sprintf("image: %s → %s", appConfig.Image, updateImage))
+			newFullImage = resolveImageTag(appConfig.Image, updateImage)
+			if appConfig.Image != newFullImage {
+				changes = append(changes, fmt.Sprintf("image: %s → %s", appConfig.Image, newFullImage))
 				imageUpdated = true
 			}
 		}
@@ -169,17 +175,17 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	if imageUpdated {
 		progress.Step("Baixando nova imagem...")
 
-		if err := dockerClient.PullImage(updateImage); err != nil {
+		if err := dockerClient.PullImage(newFullImage); err != nil {
 			ui.Error("Erro ao baixar imagem: " + err.Error())
 			return err
 		}
-		progress.SubStep(fmt.Sprintf("Imagem %s baixada!", updateImage))
+		progress.SubStep(fmt.Sprintf("Imagem %s baixada!", newFullImage))
 
 		// Atualizar a imagem na config
 		if appConfig.IsStack && containerIndexToUpdate >= 0 {
-			appConfig.Containers[containerIndexToUpdate].Image = updateImage
+			appConfig.Containers[containerIndexToUpdate].Image = newFullImage
 		} else {
-			appConfig.Image = updateImage
+			appConfig.Image = newFullImage
 			appConfig.ImagePulledAt = time.Now().UTC().Format(time.RFC3339)
 		}
 	}
@@ -325,4 +331,22 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// resolveImageTag resolve uma tag para imagem completa
+// Se newTag contém "/" ou ":", assume que é uma imagem completa
+// Caso contrário, extrai a base da imagem atual e concatena com a nova tag
+func resolveImageTag(currentImage, newTag string) string {
+	// Se contém "/" ou ":" no início, é uma imagem completa
+	if strings.Contains(newTag, "/") {
+		return newTag
+	}
+
+	// Extrair base da imagem atual (remover tag se existir)
+	base := currentImage
+	if idx := strings.LastIndex(currentImage, ":"); idx != -1 {
+		base = currentImage[:idx]
+	}
+
+	return base + ":" + newTag
 }
