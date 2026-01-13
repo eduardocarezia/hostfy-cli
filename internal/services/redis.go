@@ -64,7 +64,7 @@ func (m *RedisManager) EnsureRunning() error {
 			"hostfy.managed": "true",
 			"hostfy.service": "redis",
 		},
-		Command: []string{"redis-server", "--appendonly", "yes"},
+		Command: []string{"redis-server", "--appendonly", "yes", "--replicaof", "no", "one"},
 		Restart: "always",
 	}
 
