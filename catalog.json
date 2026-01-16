@@ -168,7 +168,7 @@
           "image": "chatwoot/chatwoot:latest",
           "port": 3000,
           "is_main": true,
-          "command": "sh -c 'bundle exec rails db:chatwoot_prepare && bundle exec rails s -p 3000 -b 0.0.0.0'",
+          "command": "sh -c 'rm -f /app/tmp/pids/server.pid && bundle exec rails db:chatwoot_prepare && bundle exec rails s -p 3000 -b 0.0.0.0'",
           "env": {},
           "volumes": [
             "{{APP_NAME}}_storage:/app/storage"
