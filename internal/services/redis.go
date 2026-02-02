@@ -64,8 +64,9 @@ func (m *RedisManager) EnsureRunning() error {
 			"hostfy.managed": "true",
 			"hostfy.service": "redis",
 		},
-		Command: []string{"redis-server", "--appendonly", "yes"},
-		Restart: "always",
+		Command:     []string{"redis-server", "--appendonly", "yes"},
+		NetworkName: docker.NetworkName,
+		Restart:     "always",
 	}
 
 	id, err := m.docker.CreateContainer(cfg)

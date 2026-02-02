@@ -75,7 +75,8 @@ func (m *PostgresManager) EnsureRunning() error {
 			"hostfy.managed": "true",
 			"hostfy.service": "postgres",
 		},
-		Restart: "always",
+		NetworkName: docker.NetworkName,
+		Restart:     "always",
 	}
 
 	id, err := m.docker.CreateContainer(cfg)
