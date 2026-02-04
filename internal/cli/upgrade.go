@@ -591,6 +591,9 @@ func runPostUpgradeMigrations() error {
 	if migrationsRan {
 		fmt.Println()
 		ui.Success("Migrações concluídas!")
+
+		// Reiniciar stacks que dependem do Redis/Postgres
+		restartDependentStacks(dockerClient)
 	} else {
 		fmt.Printf("  %s Nenhuma migração necessária\n", ui.Green("✓"))
 	}
@@ -671,4 +674,68 @@ func migratePostgresNetwork(dockerClient *docker.Client) (bool, error) {
 
 	fmt.Printf("  %s Postgres migrado com sucesso!\n", ui.Green("✓"))
 	return true, nil
+}
+
+// restartDependentStacks reinicia todas as stacks instaladas que dependem de Redis/Postgres
+func restartDependentStacks(dockerClient *docker.Client) {
+	fmt.Println()
+	ui.Info("Reiniciando stacks afetadas...")
+
+	// Listar todas as apps instaladas
+	apps, err := storage.ListApps()
+	if err != nil {
+		ui.Warning("Erro ao listar apps: " + err.Error())
+		return
+	}
+
+	restarted := 0
+	for _, appConfig := range apps {
+		// Verificar se a app usa Redis ou Postgres (checando as envs)
+		usesRedis := false
+		usesPostgres := false
+
+		// Verificar em Env (single container)
+		for _, value := range appConfig.Env {
+			if strings.Contains(value, "hostfy_redis") || strings.Contains(value, "redis://") {
+				usesRedis = true
+			}
+			if strings.Contains(value, "hostfy_postgres") || strings.Contains(value, "postgresql://") {
+				usesPostgres = true
+			}
+		}
+
+		// Verificar em SharedEnv (multi-container stack)
+		for _, value := range appConfig.SharedEnv {
+			if strings.Contains(value, "hostfy_redis") || strings.Contains(value, "redis://") {
+				usesRedis = true
+			}
+			if strings.Contains(value, "hostfy_postgres") || strings.Contains(value, "postgresql://") {
+				usesPostgres = true
+			}
+		}
+
+		if !usesRedis && !usesPostgres {
+			continue
+		}
+
+		fmt.Printf("  %s Reiniciando %s...\n", ui.Yellow("→"), appConfig.Name)
+
+		// Reiniciar containers da stack
+		if appConfig.IsStack && len(appConfig.Containers) > 0 {
+			for _, cont := range appConfig.Containers {
+				containerName := appConfig.Name + "-" + cont.Name
+				dockerClient.RestartContainer(containerName)
+			}
+		} else {
+			dockerClient.RestartContainer(appConfig.Name)
+		}
+
+		restarted++
+		fmt.Printf("  %s %s reiniciado!\n", ui.Green("✓"), appConfig.Name)
+	}
+
+	if restarted > 0 {
+		fmt.Println()
+		ui.Success(fmt.Sprintf("%d stack(s) reiniciada(s)!", restarted))
+	}
 }
