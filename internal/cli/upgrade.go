@@ -619,21 +619,35 @@ func migrateRedisNetwork(dockerClient *docker.Client) (bool, error) {
 	// Verificar se o Redis tem o comando bugado --replicaof
 	needsCommandFix, err := dockerClient.ContainerHasBuggyCommand(containerName, "--replicaof")
 	if err != nil {
-		return false, err
+		// Ignora erro, tenta outra verificação
+		needsCommandFix = false
 	}
 
-	if !needsNetworkMigration && !needsCommandFix {
+	// Verificar se o Redis está em modo slave (READONLY) - verificação mais confiável
+	isSlaveMode, err := docker.IsRedisInSlaveMode(containerName)
+	if err != nil {
+		// Ignora erro, usa outras verificações
+		isSlaveMode = false
+	}
+
+	needsFix := needsNetworkMigration || needsCommandFix || isSlaveMode
+
+	if !needsFix {
 		return false, nil
 	}
 
-	reason := ""
-	if needsNetworkMigration && needsCommandFix {
-		reason = "rede incorreta e comando --replicaof bugado"
-	} else if needsNetworkMigration {
-		reason = "rede incorreta"
-	} else {
-		reason = "comando --replicaof bugado (causa READONLY)"
+	// Determinar razão para o log
+	reasons := []string{}
+	if needsNetworkMigration {
+		reasons = append(reasons, "rede incorreta")
 	}
+	if needsCommandFix {
+		reasons = append(reasons, "comando --replicaof bugado")
+	}
+	if isSlaveMode {
+		reasons = append(reasons, "modo slave/READONLY detectado")
+	}
+	reason := strings.Join(reasons, " + ")
 
 	fmt.Printf("  %s Migrando Redis (%s)...\n", ui.Yellow("→"), reason)
 

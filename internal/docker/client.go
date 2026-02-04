@@ -391,3 +391,15 @@ func (c *Client) ContainerHasBuggyCommand(containerName, buggyArg string) (bool,
 
 	return false, nil
 }
+
+// IsRedisInSlaveMode verifica se o Redis está rodando em modo slave (READONLY)
+func IsRedisInSlaveMode(containerName string) (bool, error) {
+	cmd := exec.Command("docker", "exec", containerName, "redis-cli", "INFO", "replication")
+	output, err := cmd.Output()
+	if err != nil {
+		return false, err
+	}
+
+	// Se contém "role:slave", está em modo READONLY
+	return strings.Contains(string(output), "role:slave"), nil
+}
