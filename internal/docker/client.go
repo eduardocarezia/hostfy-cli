@@ -355,3 +355,20 @@ func (c *Client) ListContainersByLabel(key, value string) ([]string, error) {
 	}
 	return names, nil
 }
+
+// ContainerNeedsNetworkMigration verifica se um container precisa ser migrado para a rede correta
+func (c *Client) ContainerNeedsNetworkMigration(containerName, expectedNetwork string) (bool, error) {
+	inspect, err := c.cli.ContainerInspect(c.ctx, containerName)
+	if err != nil {
+		return false, err
+	}
+
+	// Verificar se o container está na rede esperada
+	if inspect.NetworkSettings != nil && inspect.NetworkSettings.Networks != nil {
+		if _, ok := inspect.NetworkSettings.Networks[expectedNetwork]; ok {
+			return false, nil // Já está na rede correta
+		}
+	}
+
+	return true, nil // Precisa migrar
+}

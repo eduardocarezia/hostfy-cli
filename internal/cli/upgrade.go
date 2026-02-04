@@ -12,6 +12,7 @@ import (
 
 	"github.com/eduardocarezia/hostfy-cli/internal/catalog"
 	"github.com/eduardocarezia/hostfy-cli/internal/docker"
+	"github.com/eduardocarezia/hostfy-cli/internal/services"
 	"github.com/eduardocarezia/hostfy-cli/internal/storage"
 	"github.com/eduardocarezia/hostfy-cli/internal/traefik"
 	"github.com/eduardocarezia/hostfy-cli/internal/ui"
@@ -496,6 +497,11 @@ func runUpgradeCLI() error {
 	fmt.Printf("  %s Execute 'hostfy version' para confirmar\n", ui.Green("✓"))
 	fmt.Println()
 
+	// Executar migrações pós-upgrade
+	if err := runPostUpgradeMigrations(); err != nil {
+		ui.Warning("Algumas migrações falharam: " + err.Error())
+	}
+
 	return nil
 }
 
@@ -548,4 +554,121 @@ func copyFile(src, dst string) error {
 
 	_, err = io.Copy(dest, source)
 	return err
+}
+
+// runPostUpgradeMigrations executa correções necessárias após upgrade da CLI
+func runPostUpgradeMigrations() error {
+	fmt.Println()
+	ui.Info("Verificando migrações necessárias...")
+
+	dockerClient, err := docker.NewClient()
+	if err != nil {
+		return fmt.Errorf("erro ao conectar ao Docker: %w", err)
+	}
+	defer dockerClient.Close()
+
+	// Garantir que a rede existe
+	if err := dockerClient.EnsureNetwork(); err != nil {
+		return fmt.Errorf("erro ao criar rede: %w", err)
+	}
+
+	migrationsRan := false
+
+	// Migração: Corrigir Redis na rede errada ou com configuração READONLY
+	if migrated, err := migrateRedisNetwork(dockerClient); err != nil {
+		ui.Warning("Erro ao migrar Redis: " + err.Error())
+	} else if migrated {
+		migrationsRan = true
+	}
+
+	// Migração: Corrigir Postgres na rede errada
+	if migrated, err := migratePostgresNetwork(dockerClient); err != nil {
+		ui.Warning("Erro ao migrar Postgres: " + err.Error())
+	} else if migrated {
+		migrationsRan = true
+	}
+
+	if migrationsRan {
+		fmt.Println()
+		ui.Success("Migrações concluídas!")
+	} else {
+		fmt.Printf("  %s Nenhuma migração necessária\n", ui.Green("✓"))
+	}
+
+	return nil
+}
+
+// migrateRedisNetwork verifica e corrige o container Redis
+func migrateRedisNetwork(dockerClient *docker.Client) (bool, error) {
+	containerName := services.RedisContainerName
+
+	exists, err := dockerClient.ContainerExists(containerName)
+	if err != nil || !exists {
+		return false, nil // Redis não existe, nada a fazer
+	}
+
+	// Verificar se está na rede correta
+	needsMigration, err := dockerClient.ContainerNeedsNetworkMigration(containerName, docker.NetworkName)
+	if err != nil {
+		return false, err
+	}
+
+	if !needsMigration {
+		return false, nil
+	}
+
+	fmt.Printf("  %s Migrando Redis para rede %s...\n", ui.Yellow("→"), docker.NetworkName)
+
+	// Parar e remover container antigo
+	dockerClient.StopContainer(containerName)
+	dockerClient.RemoveContainer(containerName, false) // false = manter volumes
+
+	// Recriar com configuração correta
+	secrets, _ := storage.EnsureSecrets()
+	redisManager := services.NewRedisManager(dockerClient)
+	_ = secrets // Redis não usa secrets, mas mantemos pattern
+
+	if err := redisManager.EnsureRunning(); err != nil {
+		return false, fmt.Errorf("erro ao recriar Redis: %w", err)
+	}
+
+	fmt.Printf("  %s Redis migrado com sucesso!\n", ui.Green("✓"))
+	return true, nil
+}
+
+// migratePostgresNetwork verifica e corrige o container Postgres
+func migratePostgresNetwork(dockerClient *docker.Client) (bool, error) {
+	containerName := services.PostgresContainerName
+
+	exists, err := dockerClient.ContainerExists(containerName)
+	if err != nil || !exists {
+		return false, nil // Postgres não existe, nada a fazer
+	}
+
+	// Verificar se está na rede correta
+	needsMigration, err := dockerClient.ContainerNeedsNetworkMigration(containerName, docker.NetworkName)
+	if err != nil {
+		return false, err
+	}
+
+	if !needsMigration {
+		return false, nil
+	}
+
+	fmt.Printf("  %s Migrando Postgres para rede %s...\n", ui.Yellow("→"), docker.NetworkName)
+
+	// Parar e remover container antigo
+	dockerClient.StopContainer(containerName)
+	dockerClient.RemoveContainer(containerName, false) // false = manter volumes
+
+	// Recriar com configuração correta
+	secrets, _ := storage.EnsureSecrets()
+	postgresManager := services.NewPostgresManager(dockerClient, secrets)
+
+	if err := postgresManager.EnsureRunning(); err != nil {
+		return false, fmt.Errorf("erro ao recriar Postgres: %w", err)
+	}
+
+	fmt.Printf("  %s Postgres migrado com sucesso!\n", ui.Green("✓"))
+	return true, nil
 }
