@@ -611,25 +611,38 @@ func migrateRedisNetwork(dockerClient *docker.Client) (bool, error) {
 	}
 
 	// Verificar se está na rede correta
-	needsMigration, err := dockerClient.ContainerNeedsNetworkMigration(containerName, docker.NetworkName)
+	needsNetworkMigration, err := dockerClient.ContainerNeedsNetworkMigration(containerName, docker.NetworkName)
 	if err != nil {
 		return false, err
 	}
 
-	if !needsMigration {
+	// Verificar se o Redis tem o comando bugado --replicaof
+	needsCommandFix, err := dockerClient.ContainerHasBuggyCommand(containerName, "--replicaof")
+	if err != nil {
+		return false, err
+	}
+
+	if !needsNetworkMigration && !needsCommandFix {
 		return false, nil
 	}
 
-	fmt.Printf("  %s Migrando Redis para rede %s...\n", ui.Yellow("→"), docker.NetworkName)
+	reason := ""
+	if needsNetworkMigration && needsCommandFix {
+		reason = "rede incorreta e comando --replicaof bugado"
+	} else if needsNetworkMigration {
+		reason = "rede incorreta"
+	} else {
+		reason = "comando --replicaof bugado (causa READONLY)"
+	}
+
+	fmt.Printf("  %s Migrando Redis (%s)...\n", ui.Yellow("→"), reason)
 
 	// Parar e remover container antigo
 	dockerClient.StopContainer(containerName)
 	dockerClient.RemoveContainer(containerName, false) // false = manter volumes
 
 	// Recriar com configuração correta
-	secrets, _ := storage.EnsureSecrets()
 	redisManager := services.NewRedisManager(dockerClient)
-	_ = secrets // Redis não usa secrets, mas mantemos pattern
 
 	if err := redisManager.EnsureRunning(); err != nil {
 		return false, fmt.Errorf("erro ao recriar Redis: %w", err)

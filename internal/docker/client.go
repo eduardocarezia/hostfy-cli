@@ -372,3 +372,22 @@ func (c *Client) ContainerNeedsNetworkMigration(containerName, expectedNetwork s
 
 	return true, nil // Precisa migrar
 }
+
+// ContainerHasBuggyCommand verifica se um container foi criado com um comando problemático
+func (c *Client) ContainerHasBuggyCommand(containerName, buggyArg string) (bool, error) {
+	inspect, err := c.cli.ContainerInspect(c.ctx, containerName)
+	if err != nil {
+		return false, err
+	}
+
+	// Verificar no Cmd do container
+	if inspect.Config != nil && inspect.Config.Cmd != nil {
+		for _, arg := range inspect.Config.Cmd {
+			if strings.Contains(arg, buggyArg) {
+				return true, nil
+			}
+		}
+	}
+
+	return false, nil
+}
