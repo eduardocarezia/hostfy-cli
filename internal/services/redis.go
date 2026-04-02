@@ -31,6 +31,20 @@ func (m *RedisManager) EnsureRunning() error {
 		return err
 	}
 	if running {
+		// Verificar se está em modo slave (READONLY) ou com comando bugado
+		needsFix := false
+		if isSlaveMode, err := docker.IsRedisInSlaveMode(RedisContainerName); err == nil && isSlaveMode {
+			needsFix = true
+		}
+		if hasBuggyCmd, err := m.docker.ContainerHasBuggyCommand(RedisContainerName, "--replicaof"); err == nil && hasBuggyCmd {
+			needsFix = true
+		}
+		if needsFix {
+			// Recriar container com configuração correta
+			m.docker.StopContainer(RedisContainerName)
+			m.docker.RemoveContainer(RedisContainerName, false) // manter volumes
+			return m.create()
+		}
 		return nil
 	}
 
@@ -40,12 +54,21 @@ func (m *RedisManager) EnsureRunning() error {
 	}
 
 	if exists {
+		// Verificar se tem comando bugado antes de simplesmente iniciar
+		if hasBuggyCmd, err := m.docker.ContainerHasBuggyCommand(RedisContainerName, "--replicaof"); err == nil && hasBuggyCmd {
+			m.docker.RemoveContainer(RedisContainerName, false)
+			return m.create()
+		}
 		if err := m.docker.StartContainer(RedisContainerName); err != nil {
 			return err
 		}
 		return m.docker.WaitForHealthy(RedisContainerName, 30*time.Second)
 	}
 
+	return m.create()
+}
+
+func (m *RedisManager) create() error {
 	if err := m.docker.PullImage(RedisImage); err != nil {
 		return err
 	}
