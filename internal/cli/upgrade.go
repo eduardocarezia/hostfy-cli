@@ -102,15 +102,41 @@ func runUpgradeStack(stackName string) error {
 func upgradeSingleContainer(progress *ui.Progress, dockerClient *docker.Client, appConfig *storage.AppConfig, catalogApp *catalog.App) error {
 	oldImage := appConfig.Image
 	newImage := catalogApp.Image
-	imageChanged := oldImage != newImage
+	tagChanged := oldImage != newImage
 
-	if imageChanged {
+	if tagChanged {
 		progress.SubStep(fmt.Sprintf("Nova imagem: %s", newImage))
 		progress.SubStep(fmt.Sprintf("Atual: %s", oldImage))
-	} else if !upgradeForce {
-		progress.SubStep("Imagem já está atualizada")
+	}
+
+	// 3. Baixar imagem do catálogo (sempre, para resolver tags como :latest)
+	progress.Step("Baixando imagem do catálogo...")
+	if err := dockerClient.PullImage(newImage); err != nil {
+		ui.Error("Erro ao baixar imagem: " + err.Error())
+		return err
+	}
+
+	// Comparar IDs (sha256) para detectar atualização real mesmo quando a tag não muda
+	newImageID, err := dockerClient.GetImageID(newImage)
+	if err != nil {
+		ui.Warning("Erro ao inspecionar nova imagem: " + err.Error())
+	}
+	runningImageID, err := dockerClient.GetContainerImageID(appConfig.Name)
+	if err != nil {
+		ui.Warning("Erro ao inspecionar container atual: " + err.Error())
+	}
+
+	digestChanged := newImageID != "" && runningImageID != "" && newImageID != runningImageID
+	imageChanged := tagChanged || digestChanged
+
+	if !imageChanged && !upgradeForce {
+		progress.SubStep("Imagem já está atualizada (mesmo digest)")
 		ui.Success(fmt.Sprintf("%s já está na versão mais recente!", appConfig.Name))
 		return nil
+	}
+
+	if digestChanged && !tagChanged {
+		progress.SubStep(fmt.Sprintf("Novo digest detectado para %s", newImage))
 	}
 
 	// Identificar novas envs do catálogo
@@ -130,13 +156,6 @@ func upgradeSingleContainer(progress *ui.Progress, dockerClient *docker.Client, 
 		for _, e := range addedEnvs {
 			progress.SubStep(fmt.Sprintf("Nova env: %s", e))
 		}
-	}
-
-	// 3. Baixar nova imagem
-	progress.Step("Baixando nova imagem...")
-	if err := dockerClient.PullImage(newImage); err != nil {
-		ui.Error("Erro ao baixar imagem: " + err.Error())
-		return err
 	}
 
 	// 4. Parar e recriar container
@@ -210,7 +229,27 @@ func upgradeMultiContainer(progress *ui.Progress, dockerClient *docker.Client, a
 		catalogContainers[catalogApp.Containers[i].Name] = &catalogApp.Containers[i]
 	}
 
-	// Verificar imagens que mudaram
+	// 1. Baixar todas as imagens do catálogo (sempre, para resolver tags como :latest)
+	progress.Step("Baixando imagens do catálogo...")
+	pulledImages := make(map[string]bool)
+	for i := range appConfig.Containers {
+		container := &appConfig.Containers[i]
+		catContainer, ok := catalogContainers[container.Name]
+		if !ok {
+			continue
+		}
+		if pulledImages[catContainer.Image] {
+			continue
+		}
+		progress.SubStep(fmt.Sprintf("Baixando %s...", catContainer.Image))
+		if err := dockerClient.PullImage(catContainer.Image); err != nil {
+			ui.Error(fmt.Sprintf("Erro ao baixar %s: %s", catContainer.Image, err.Error()))
+			return err
+		}
+		pulledImages[catContainer.Image] = true
+	}
+
+	// 2. Verificar imagens que mudaram (compara digest após o pull)
 	imagesToUpdate := []struct {
 		name     string
 		oldImage string
@@ -219,31 +258,52 @@ func upgradeMultiContainer(progress *ui.Progress, dockerClient *docker.Client, a
 	}{}
 
 	for i, container := range appConfig.Containers {
-		if catContainer, ok := catalogContainers[container.Name]; ok {
-			if container.Image != catContainer.Image {
-				imagesToUpdate = append(imagesToUpdate, struct {
-					name     string
-					oldImage string
-					newImage string
-					index    int
-				}{
-					name:     container.Name,
-					oldImage: container.Image,
-					newImage: catContainer.Image,
-					index:    i,
-				})
-			}
+		catContainer, ok := catalogContainers[container.Name]
+		if !ok {
+			continue
+		}
+
+		fullName := fmt.Sprintf("%s_%s", appConfig.Name, container.Name)
+		tagChanged := container.Image != catContainer.Image
+
+		newImageID, err := dockerClient.GetImageID(catContainer.Image)
+		if err != nil {
+			ui.Warning(fmt.Sprintf("Erro ao inspecionar %s: %s", catContainer.Image, err.Error()))
+		}
+		runningImageID, err := dockerClient.GetContainerImageID(fullName)
+		if err != nil {
+			ui.Warning(fmt.Sprintf("Erro ao inspecionar container %s: %s", fullName, err.Error()))
+		}
+
+		digestChanged := newImageID != "" && runningImageID != "" && newImageID != runningImageID
+
+		if tagChanged || digestChanged || upgradeForce {
+			imagesToUpdate = append(imagesToUpdate, struct {
+				name     string
+				oldImage string
+				newImage string
+				index    int
+			}{
+				name:     container.Name,
+				oldImage: container.Image,
+				newImage: catContainer.Image,
+				index:    i,
+			})
 		}
 	}
 
-	if len(imagesToUpdate) == 0 && !upgradeForce {
-		progress.SubStep("Todas as imagens já estão atualizadas")
+	if len(imagesToUpdate) == 0 {
+		progress.SubStep("Todas as imagens já estão atualizadas (mesmo digest)")
 		ui.Success(fmt.Sprintf("%s já está na versão mais recente!", appConfig.Name))
 		return nil
 	}
 
 	for _, img := range imagesToUpdate {
-		progress.SubStep(fmt.Sprintf("%s: %s → %s", img.name, img.oldImage, img.newImage))
+		if img.oldImage == img.newImage {
+			progress.SubStep(fmt.Sprintf("%s: novo digest para %s", img.name, img.newImage))
+		} else {
+			progress.SubStep(fmt.Sprintf("%s: %s → %s", img.name, img.oldImage, img.newImage))
+		}
 	}
 
 	// Identificar novas envs compartilhadas
@@ -265,29 +325,6 @@ func upgradeMultiContainer(progress *ui.Progress, dockerClient *docker.Client, a
 	if len(addedEnvs) > 0 {
 		for _, e := range addedEnvs {
 			progress.SubStep(fmt.Sprintf("Nova env compartilhada: %s", e))
-		}
-	}
-
-	// 3. Baixar novas imagens
-	progress.Step("Baixando novas imagens...")
-	for _, img := range imagesToUpdate {
-		progress.SubStep(fmt.Sprintf("Baixando %s...", img.newImage))
-		if err := dockerClient.PullImage(img.newImage); err != nil {
-			ui.Error(fmt.Sprintf("Erro ao baixar %s: %s", img.newImage, err.Error()))
-			return err
-		}
-	}
-
-	// Se --force mas sem imagens para atualizar, baixar todas as imagens
-	if len(imagesToUpdate) == 0 && upgradeForce {
-		for i, container := range appConfig.Containers {
-			if catContainer, ok := catalogContainers[container.Name]; ok {
-				progress.SubStep(fmt.Sprintf("Baixando %s...", catContainer.Image))
-				if err := dockerClient.PullImage(catContainer.Image); err != nil {
-					ui.Warning(fmt.Sprintf("Erro ao baixar %s: %s", catContainer.Image, err.Error()))
-				}
-				appConfig.Containers[i].Image = catContainer.Image
-			}
 		}
 	}
 

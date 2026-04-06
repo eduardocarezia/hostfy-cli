@@ -71,6 +71,32 @@ func (c *Client) PullImage(imageName string) error {
 	return nil
 }
 
+// GetImageID retorna o ID (sha256) de uma imagem local pelo nome/tag.
+// Retorna string vazia se a imagem não existir localmente.
+func (c *Client) GetImageID(imageName string) (string, error) {
+	inspect, _, err := c.cli.ImageInspectWithRaw(c.ctx, imageName)
+	if err != nil {
+		if client.IsErrNotFound(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	return inspect.ID, nil
+}
+
+// GetContainerImageID retorna o ID da imagem que um container está rodando.
+// Retorna string vazia se o container não existir.
+func (c *Client) GetContainerImageID(name string) (string, error) {
+	inspect, err := c.cli.ContainerInspect(c.ctx, name)
+	if err != nil {
+		if client.IsErrNotFound(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	return inspect.Image, nil
+}
+
 func (c *Client) ContainerExists(name string) (bool, error) {
 	containers, err := c.cli.ContainerList(c.ctx, container.ListOptions{
 		All:     true,
