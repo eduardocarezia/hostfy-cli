@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/eduardocarezia/hostfy-cli/internal/catalog"
@@ -32,16 +33,19 @@ Exemplos:
 }
 
 var (
-	upgradeForce bool
+	upgradeForce       bool
+	upgradeSkipSelf    bool
 )
 
 const (
-	githubRepo = "eduardocarezia/hostfy-cli"
-	versionURL = "https://raw.githubusercontent.com/eduardocarezia/hostfy-cli/main/VERSION"
+	githubRepo            = "eduardocarezia/hostfy-cli"
+	versionURL            = "https://raw.githubusercontent.com/eduardocarezia/hostfy-cli/main/VERSION"
+	selfUpgradeMarkerEnv  = "HOSTFY_SELF_UPGRADED"
 )
 
 func init() {
 	upgradeCmd.Flags().BoolVar(&upgradeForce, "force", false, "Força a atualização mesmo se já estiver na última versão")
+	upgradeCmd.Flags().BoolVar(&upgradeSkipSelf, "skip-self-upgrade", false, "Pula o auto-update do CLI antes de atualizar a stack")
 }
 
 func runUpgrade(cmd *cobra.Command, args []string) error {
@@ -56,6 +60,28 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 
 // runUpgradeStack atualiza uma stack instalada
 func runUpgradeStack(stackName string) error {
+	// 0. Auto-upgrade do próprio CLI antes de mexer na stack.
+	// Garante que o usuário sempre rode a stack com a última versão do código,
+	// evitando o cenário de bugs já corrigidos no main mas não no binário local.
+	// O marker env quebra qualquer loop de re-exec.
+	if !upgradeSkipSelf && os.Getenv(selfUpgradeMarkerEnv) == "" {
+		ui.Info("Verificando atualizações do CLI antes de atualizar a stack...")
+		if err := runUpgradeCLI(); err != nil {
+			ui.Warning("Falha ao auto-atualizar o CLI: " + err.Error())
+			ui.Warning("Prosseguindo com a versão atual do CLI...")
+		} else {
+			// Re-executa o mesmo comando com o binário novo.
+			execPath, err := os.Executable()
+			if err == nil {
+				newEnv := append(os.Environ(), selfUpgradeMarkerEnv+"=1")
+				ui.Info("Reiniciando com o CLI atualizado...")
+				if err := syscall.Exec(execPath, os.Args, newEnv); err != nil {
+					ui.Warning("Falha ao re-executar: " + err.Error())
+				}
+			}
+		}
+	}
+
 	// Carregar config da stack
 	appConfig, err := storage.LoadApp(stackName)
 	if err != nil {
