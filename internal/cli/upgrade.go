@@ -263,7 +263,7 @@ func upgradeMultiContainer(progress *ui.Progress, dockerClient *docker.Client, a
 			continue
 		}
 
-		fullName := fmt.Sprintf("%s_%s", appConfig.Name, container.Name)
+		fullName := fmt.Sprintf("%s-%s", appConfig.Name, container.Name)
 		tagChanged := container.Image != catContainer.Image
 
 		newImageID, err := dockerClient.GetImageID(catContainer.Image)
@@ -332,7 +332,7 @@ func upgradeMultiContainer(progress *ui.Progress, dockerClient *docker.Client, a
 	progress.Step("Recriando containers...")
 	for _, img := range imagesToUpdate {
 		containerConfig := &appConfig.Containers[img.index]
-		fullName := fmt.Sprintf("%s_%s", appConfig.Name, containerConfig.Name)
+		fullName := fmt.Sprintf("%s-%s", appConfig.Name, containerConfig.Name)
 
 		progress.SubStep(fmt.Sprintf("Recriando %s...", containerConfig.Name))
 
