@@ -81,17 +81,36 @@ log "Docker API configurado ✓"
 # 2. Instalar hostfy
 info "[2/5] Instalando hostfy..."
 
-# Instalar Go se não existir
-if ! command -v go &> /dev/null; then
-    log "Instalando Go..."
-    GO_VERSION="1.21.5"
+# Instalar Go se não existir ou se versão for antiga (< 1.22)
+GO_VERSION="1.22.10"
+GO_MIN_MAJOR=1
+GO_MIN_MINOR=22
+NEED_GO_INSTALL=0
+
+if [ ! -x /usr/local/go/bin/go ]; then
+    NEED_GO_INSTALL=1
+else
+    CURRENT_GO=$(/usr/local/go/bin/go version 2>/dev/null | awk '{print $3}' | sed 's/go//')
+    CURRENT_MAJOR=$(echo "$CURRENT_GO" | cut -d. -f1)
+    CURRENT_MINOR=$(echo "$CURRENT_GO" | cut -d. -f2)
+    if [ "$CURRENT_MAJOR" -lt "$GO_MIN_MAJOR" ] || \
+       { [ "$CURRENT_MAJOR" -eq "$GO_MIN_MAJOR" ] && [ "$CURRENT_MINOR" -lt "$GO_MIN_MINOR" ]; }; then
+        warn "Go $CURRENT_GO é antigo, atualizando para $GO_VERSION"
+        NEED_GO_INSTALL=1
+    else
+        log "Go $CURRENT_GO já instalado ✓"
+    fi
+fi
+
+if [ "$NEED_GO_INSTALL" -eq 1 ]; then
+    log "Instalando Go ${GO_VERSION}..."
     curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz" -o /tmp/go.tar.gz
     rm -rf /usr/local/go
     tar -C /usr/local -xzf /tmp/go.tar.gz
     rm /tmp/go.tar.gz
-    export PATH=$PATH:/usr/local/go/bin
-    log "Go instalado ✓"
+    log "Go ${GO_VERSION} instalado ✓"
 fi
+export PATH=/usr/local/go/bin:$PATH
 
 # Clonar e compilar
 log "Compilando hostfy..."
