@@ -5,6 +5,7 @@ go 1.22
 require (
 	github.com/docker/docker v27.3.1+incompatible
 	github.com/docker/go-connections v0.5.0
+	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.8.0
 	github.com/fatih/color v1.16.0
 	github.com/briandowns/spinner v1.23.0
