@@ -513,10 +513,16 @@ func runUpgradeCLI() error {
 		return err
 	}
 
+	// GOTOOLCHAIN=local: usa o Go já instalado (preflight garante >= 1.22.10),
+	// evitando que o go mod tidy tente baixar uma toolchain (cenário do bug
+	// "download go1.22 for linux/arm64: toolchain not available" em VPS antigas).
+	goEnv := append(os.Environ(), "GOTOOLCHAIN=local")
+
 	// Go mod tidy
 	progress.SubStep("Resolvendo dependências...")
 	tidyCmd := exec.Command(goPath, "mod", "tidy")
 	tidyCmd.Dir = tmpDir
+	tidyCmd.Env = goEnv
 	if output, err := tidyCmd.CombinedOutput(); err != nil {
 		ui.Error("Erro ao resolver dependências: " + string(output))
 		return err
@@ -527,6 +533,7 @@ func runUpgradeCLI() error {
 	newBinary := filepath.Join(tmpDir, "hostfy-new")
 	buildCmd := exec.Command(goPath, "build", "-ldflags", "-s -w", "-o", newBinary, "./cmd/hostfy")
 	buildCmd.Dir = tmpDir
+	buildCmd.Env = goEnv
 	if output, err := buildCmd.CombinedOutput(); err != nil {
 		ui.Error("Erro ao compilar: " + string(output))
 		return err

@@ -118,9 +118,11 @@ TEMP_DIR=$(mktemp -d)
 cd "$TEMP_DIR"
 git clone "https://github.com/${GITHUB_REPO}.git" . || error "Falha ao clonar repositório"
 log "Resolvendo dependências..."
-/usr/local/go/bin/go mod tidy || error "Falha ao resolver dependências"
+# GOTOOLCHAIN=local: usa o Go que acabamos de instalar (>=1.22.10) sem
+# tentar auto-download de toolchain (que falha em algumas VPS arm64).
+GOTOOLCHAIN=local /usr/local/go/bin/go mod tidy || error "Falha ao resolver dependências"
 log "Compilando binário..."
-/usr/local/go/bin/go build -ldflags "-s -w" -o "${HOSTFY_BIN}" ./cmd/hostfy
+GOTOOLCHAIN=local /usr/local/go/bin/go build -ldflags "-s -w" -o "${HOSTFY_BIN}" ./cmd/hostfy
 chmod +x "${HOSTFY_BIN}"
 cd /
 rm -rf "$TEMP_DIR"

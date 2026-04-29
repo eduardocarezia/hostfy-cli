@@ -2,6 +2,8 @@ module github.com/eduardocarezia/hostfy-cli
 
 go 1.22
 
+toolchain go1.22.10
+
 require (
 	github.com/docker/docker v27.3.1+incompatible
 	github.com/docker/go-connections v0.5.0
