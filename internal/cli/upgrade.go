@@ -448,6 +448,12 @@ func upgradeMultiContainer(progress *ui.Progress, dockerClient *docker.Client, a
 
 // runUpgradeCLI atualiza o próprio CLI
 func runUpgradeCLI() error {
+	// 0. Preflight: Docker + Go (mesmas verificações do install.sh)
+	if err := EnsurePreflight(); err != nil {
+		ui.Warning("Preflight falhou: " + err.Error())
+		ui.Warning("Prosseguindo mesmo assim...")
+	}
+
 	progress := ui.NewProgress(5)
 
 	// 1. Verificar versão atual
@@ -468,9 +474,13 @@ func runUpgradeCLI() error {
 		latestVersion = strings.TrimSpace(latestVersion)
 		progress.SubStep(fmt.Sprintf("Última versão: %s", latestVersion))
 
-		// Verificar se precisa atualizar
+		// Mesmo se já estamos na última versão, ainda rodamos as migrações
+		// para corrigir problemas de runtime (Redis READONLY, rede errada, etc).
 		if !upgradeForce && currentVersion == latestVersion {
 			ui.Success("Você já está na versão mais recente!")
+			if err := runPostUpgradeMigrations(); err != nil {
+				ui.Warning("Algumas migrações falharam: " + err.Error())
+			}
 			return nil
 		}
 	}
