@@ -628,6 +628,49 @@
       ],
       "user_env": []
     },
+    "puppeteer": {
+      "name": "Puppeteer",
+      "description": "Puppeteer/Chromium headless como serviço (stack Browserless v2) - WebSocket+REST para scraping, screenshots e PDFs. Container independente, consumido via HTTP por n8n e outras apps",
+      "image": "ghcr.io/browserless/chromium:latest",
+      "port": 3000,
+      "dependencies": [],
+      "env": {
+        "TOKEN": "{{GENERATE_SECRET_32}}",
+        "CONCURRENT": "10",
+        "QUEUED": "10",
+        "TIMEOUT": "60000",
+        "HEALTH": "true",
+        "ENABLE_CORS": "true",
+        "DEFAULT_BLOCK_ADS": "true",
+        "DEFAULT_STEALTH": "false",
+        "DOWNLOAD_DIR": "/downloads",
+        "DATA_DIR": "/user_data",
+        "PROXY_HOST": "{{APP_DOMAIN}}",
+        "PROXY_PORT": "443",
+        "PROXY_SSL": "true"
+      },
+      "volumes": [
+        "{{APP_NAME}}_data:/user_data",
+        "{{APP_NAME}}_downloads:/downloads"
+      ],
+      "user_env": [
+        {
+          "key": "CONCURRENT",
+          "prompt": "Sessões simultâneas máximas (cada Chromium consome ~150-300MB RAM)",
+          "default": "10"
+        },
+        {
+          "key": "QUEUED",
+          "prompt": "Tamanho da fila quando todas as sessões estiverem ocupadas",
+          "default": "10"
+        },
+        {
+          "key": "TIMEOUT",
+          "prompt": "Timeout máximo por sessão em ms (60000 = 60s)",
+          "default": "60000"
+        }
+      ]
+    },
     "dify": {
       "name": "Dify",
       "description": "LLM App Development Platform - Crie apps com IA Generativa",
