@@ -643,16 +643,11 @@
         "ENABLE_CORS": "true",
         "DEFAULT_BLOCK_ADS": "true",
         "DEFAULT_STEALTH": "false",
-        "DOWNLOAD_DIR": "/downloads",
-        "DATA_DIR": "/user_data",
         "PROXY_HOST": "{{APP_DOMAIN}}",
         "PROXY_PORT": "443",
         "PROXY_SSL": "true"
       },
-      "volumes": [
-        "{{APP_NAME}}_data:/user_data",
-        "{{APP_NAME}}_downloads:/downloads"
-      ],
+      "volumes": [],
       "user_env": [
         {
           "key": "CONCURRENT",
