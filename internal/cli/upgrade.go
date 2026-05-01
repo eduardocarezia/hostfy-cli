@@ -513,22 +513,25 @@ func runUpgradeCLI() error {
 		return err
 	}
 
-	// GOTOOLCHAIN=local: usa o Go já instalado (preflight garante >= 1.22.10),
-	// evitando que o go mod tidy tente baixar uma toolchain (cenário do bug
-	// "download go1.22 for linux/arm64: toolchain not available" em VPS antigas).
-	goEnv := append(os.Environ(), "GOTOOLCHAIN=local")
+	// GOTOOLCHAIN=auto: deixa o Go baixar a toolchain pedida em go.mod se for
+	// mais nova que a local. Combinado com go.mod versionando "go X.Y.Z" (com
+	// patch real e baixável), evita o bug histórico de "go1.22 toolchain not
+	// available" e ainda permite que VPS com Go local mais antigo conclua o
+	// upgrade sem precisar reinstalar Go manualmente.
+	goEnv := append(os.Environ(), "GOTOOLCHAIN=auto")
 
-	// Go mod tidy
-	progress.SubStep("Resolvendo dependências...")
-	tidyCmd := exec.Command(goPath, "mod", "tidy")
-	tidyCmd.Dir = tmpDir
-	tidyCmd.Env = goEnv
-	if output, err := tidyCmd.CombinedOutput(); err != nil {
-		ui.Error("Erro ao resolver dependências: " + string(output))
+	// Go mod download (go.sum é commitado, então download é determinístico
+	// e não muta go.mod/go.sum como o tidy faria).
+	progress.SubStep("Baixando dependências...")
+	downloadCmd := exec.Command(goPath, "mod", "download")
+	downloadCmd.Dir = tmpDir
+	downloadCmd.Env = goEnv
+	if output, err := downloadCmd.CombinedOutput(); err != nil {
+		ui.Error("Erro ao baixar dependências: " + string(output))
 		return err
 	}
 
-	// Build
+	// Build (mesmo goEnv com GOTOOLCHAIN=auto)
 	progress.SubStep("Compilando...")
 	newBinary := filepath.Join(tmpDir, "hostfy-new")
 	buildCmd := exec.Command(goPath, "build", "-ldflags", "-s -w", "-o", newBinary, "./cmd/hostfy")

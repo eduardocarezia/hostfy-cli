@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	preflightGoVersion       = "1.22.10"
+	preflightGoVersion       = "1.25.0"
 	preflightGoMinMajor      = 1
-	preflightGoMinMinor      = 22
+	preflightGoMinMinor      = 25
 	preflightGoInstallPath   = "/usr/local/go"
 	preflightGoBinary        = "/usr/local/go/bin/go"
 	preflightDockerDropinDir = "/etc/systemd/system/docker.service.d"

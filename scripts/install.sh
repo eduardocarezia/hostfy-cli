@@ -81,10 +81,10 @@ log "Docker API configurado ✓"
 # 2. Instalar hostfy
 info "[2/5] Instalando hostfy..."
 
-# Instalar Go se não existir ou se versão for antiga (< 1.22)
-GO_VERSION="1.22.10"
+# Instalar Go se não existir ou se versão for antiga (< 1.25)
+GO_VERSION="1.25.0"
 GO_MIN_MAJOR=1
-GO_MIN_MINOR=22
+GO_MIN_MINOR=25
 NEED_GO_INSTALL=0
 
 if [ ! -x /usr/local/go/bin/go ]; then
@@ -117,12 +117,13 @@ log "Compilando hostfy..."
 TEMP_DIR=$(mktemp -d)
 cd "$TEMP_DIR"
 git clone "https://github.com/${GITHUB_REPO}.git" . || error "Falha ao clonar repositório"
-log "Resolvendo dependências..."
-# GOTOOLCHAIN=local: usa o Go que acabamos de instalar (>=1.22.10) sem
-# tentar auto-download de toolchain (que falha em algumas VPS arm64).
-GOTOOLCHAIN=local /usr/local/go/bin/go mod tidy || error "Falha ao resolver dependências"
+log "Baixando dependências..."
+# go.sum é commitado: download é determinístico (sem mutar go.mod). GOTOOLCHAIN=auto
+# permite ao Go local baixar toolchain mais nova se a directive em go.mod exigir,
+# garantindo que o build não trava se Go local for menor que o pinado em go.mod.
+GOTOOLCHAIN=auto /usr/local/go/bin/go mod download || error "Falha ao baixar dependências"
 log "Compilando binário..."
-GOTOOLCHAIN=local /usr/local/go/bin/go build -ldflags "-s -w" -o "${HOSTFY_BIN}" ./cmd/hostfy
+GOTOOLCHAIN=auto /usr/local/go/bin/go build -ldflags "-s -w" -o "${HOSTFY_BIN}" ./cmd/hostfy || error "Falha ao compilar binário"
 chmod +x "${HOSTFY_BIN}"
 cd /
 rm -rf "$TEMP_DIR"
