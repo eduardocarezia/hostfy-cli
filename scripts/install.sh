@@ -112,18 +112,25 @@ if [ "$NEED_GO_INSTALL" -eq 1 ]; then
 fi
 export PATH=/usr/local/go/bin:$PATH
 
-# Clonar e compilar
+# Baixar e compilar
 log "Compilando hostfy..."
 TEMP_DIR=$(mktemp -d)
 cd "$TEMP_DIR"
-git clone "https://github.com/${GITHUB_REPO}.git" . || error "Falha ao clonar repositório"
+# Tarball HTTPS: evita o bug Git 2.34 + HTTP/2 do Ubuntu 22.04 (exit 128).
+if ! curl -fsSL "https://codeload.github.com/${GITHUB_REPO}/tar.gz/refs/heads/main" | tar -xz --strip-components=1; then
+    warn "Download via HTTPS falhou, tentando git clone (HTTP/1.1)..."
+    GIT_TERMINAL_PROMPT=0 git -c http.version=HTTP/1.1 clone --depth 1 "https://github.com/${GITHUB_REPO}.git" . \
+        || error "Falha ao baixar repositório"
+fi
 log "Baixando dependências..."
 # go.sum é commitado: download é determinístico (sem mutar go.mod). GOTOOLCHAIN=auto
 # permite ao Go local baixar toolchain mais nova se a directive em go.mod exigir,
 # garantindo que o build não trava se Go local for menor que o pinado em go.mod.
 GOTOOLCHAIN=auto /usr/local/go/bin/go mod download || error "Falha ao baixar dependências"
 log "Compilando binário..."
-GOTOOLCHAIN=auto /usr/local/go/bin/go build -ldflags "-s -w" -o "${HOSTFY_BIN}" ./cmd/hostfy || error "Falha ao compilar binário"
+VERSION=$(tr -d '[:space:]' < VERSION 2>/dev/null || true)
+VERSION=${VERSION:-dev}
+GOTOOLCHAIN=auto /usr/local/go/bin/go build -ldflags "-s -w -X github.com/eduardocarezia/hostfy-cli/internal/cli.Version=${VERSION}" -o "${HOSTFY_BIN}" ./cmd/hostfy || error "Falha ao compilar binário"
 chmod +x "${HOSTFY_BIN}"
 cd /
 rm -rf "$TEMP_DIR"

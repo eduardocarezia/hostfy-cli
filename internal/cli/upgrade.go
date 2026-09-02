@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"net/http"
@@ -21,15 +23,16 @@ import (
 )
 
 var upgradeCmd = &cobra.Command{
-	Use:   "upgrade [stack]",
-	Short: "Atualiza o CLI ou uma stack instalada",
+	Use:          "upgrade [stack]",
+	Short:        "Atualiza o CLI ou uma stack instalada",
 	Long: `Sem argumentos: atualiza o hostfy CLI para a versão mais recente.
 Com argumento: atualiza uma stack instalada para a versão mais recente do catálogo.
 
 Exemplos:
   hostfy upgrade          # Atualiza o CLI
   hostfy upgrade n8n      # Atualiza a stack n8n`,
-	RunE: runUpgrade,
+	SilenceUsage: true,
+	RunE:         runUpgrade,
 }
 
 var (
@@ -38,9 +41,10 @@ var (
 )
 
 const (
-	githubRepo            = "eduardocarezia/hostfy-cli"
-	versionURL            = "https://raw.githubusercontent.com/eduardocarezia/hostfy-cli/main/VERSION"
-	selfUpgradeMarkerEnv  = "HOSTFY_SELF_UPGRADED"
+	githubRepo           = "eduardocarezia/hostfy-cli"
+	versionURL           = "https://raw.githubusercontent.com/eduardocarezia/hostfy-cli/main/VERSION"
+	sourceTarballURL     = "https://codeload.github.com/eduardocarezia/hostfy-cli/tar.gz/refs/heads/main"
+	selfUpgradeMarkerEnv = "HOSTFY_SELF_UPGRADED"
 )
 
 func init() {
@@ -505,11 +509,11 @@ func runUpgradeCLI() error {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// Clone
-	progress.SubStep("Clonando repositório...")
-	cloneCmd := exec.Command("git", "clone", "--depth", "1", fmt.Sprintf("https://github.com/%s.git", githubRepo), tmpDir)
-	if output, err := cloneCmd.CombinedOutput(); err != nil {
-		ui.Error("Erro ao clonar: " + string(output))
+	// Baixa o código via tarball HTTPS (evita o bug Git 2.34 + HTTP/2 do
+	// Ubuntu 22.04, que responde exit 128 / "could not read Username").
+	progress.SubStep("Baixando código-fonte...")
+	if err := downloadSource(tmpDir); err != nil {
+		ui.Error("Erro ao baixar código: " + err.Error())
 		return err
 	}
 
@@ -534,7 +538,8 @@ func runUpgradeCLI() error {
 	// Build (mesmo goEnv com GOTOOLCHAIN=auto)
 	progress.SubStep("Compilando...")
 	newBinary := filepath.Join(tmpDir, "hostfy-new")
-	buildCmd := exec.Command(goPath, "build", "-ldflags", "-s -w", "-o", newBinary, "./cmd/hostfy")
+	ldflags := fmt.Sprintf("-s -w -X github.com/eduardocarezia/hostfy-cli/internal/cli.Version=%s", latestVersion)
+	buildCmd := exec.Command(goPath, "build", "-ldflags", ldflags, "-o", newBinary, "./cmd/hostfy")
 	buildCmd.Dir = tmpDir
 	buildCmd.Env = goEnv
 	if output, err := buildCmd.CombinedOutput(); err != nil {
@@ -637,6 +642,121 @@ func copyFile(src, dst string) error {
 
 	_, err = io.Copy(dest, source)
 	return err
+}
+
+func downloadSource(destDir string) error {
+	if err := downloadTarball(destDir); err == nil {
+		return nil
+	} else {
+		ui.Warning("Download via HTTPS falhou: " + err.Error())
+		ui.Warning("Tentando git clone com HTTP/1.1...")
+	}
+
+	entries, err := os.ReadDir(destDir)
+	if err == nil {
+		for _, entry := range entries {
+			_ = os.RemoveAll(filepath.Join(destDir, entry.Name()))
+		}
+	}
+
+	return gitCloneSource(destDir)
+}
+
+func downloadTarball(destDir string) error {
+	client := &http.Client{Timeout: 60 * time.Second}
+	resp, err := client.Get(sourceTarballURL)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("status %d", resp.StatusCode)
+	}
+
+	gz, err := gzip.NewReader(resp.Body)
+	if err != nil {
+		return fmt.Errorf("gzip: %w", err)
+	}
+	defer gz.Close()
+
+	return extractTarball(tar.NewReader(gz), destDir)
+}
+
+func extractTarball(tr *tar.Reader, destDir string) error {
+	destAbs, err := filepath.Abs(destDir)
+	if err != nil {
+		return err
+	}
+
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+
+		// GitHub manda hostfy-cli-main/<path>
+		parts := strings.SplitN(hdr.Name, "/", 2)
+		if len(parts) < 2 || parts[1] == "" {
+			continue
+		}
+		rel := filepath.Clean(parts[1])
+		if rel == "." || strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
+			continue
+		}
+
+		target := filepath.Join(destAbs, rel)
+		if !strings.HasPrefix(target, destAbs+string(os.PathSeparator)) {
+			continue
+		}
+
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(target, 0755); err != nil {
+				return err
+			}
+		case tar.TypeReg:
+			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+				return err
+			}
+			file, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(hdr.Mode)&0777)
+			if err != nil {
+				return err
+			}
+			if _, err := io.Copy(file, tr); err != nil {
+				file.Close()
+				return err
+			}
+			if err := file.Close(); err != nil {
+				return err
+			}
+		default:
+			// ignora symlink/hardlink/etc
+		}
+	}
+}
+
+func gitCloneSource(destDir string) error {
+	cloneCmd := exec.Command(
+		"git",
+		"-c", "http.version=HTTP/1.1",
+		"clone", "--depth", "1",
+		fmt.Sprintf("https://github.com/%s.git", githubRepo),
+		destDir,
+	)
+	cloneCmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	output, err := cloneCmd.CombinedOutput()
+	if err != nil {
+		msg := strings.TrimSpace(string(output))
+		if msg == "" {
+			msg = err.Error()
+		}
+		return fmt.Errorf("%s", msg)
+	}
+	return nil
 }
 
 // runPostUpgradeMigrations executa correções necessárias após upgrade da CLI
